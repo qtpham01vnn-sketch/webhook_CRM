@@ -97,4 +97,25 @@
     background: transparent;
   }
 
+  .modal-scroll {
+    scrollbar-gutter: stable;
+    scrollbar-color: #22d3ee #0b2540;
+    scrollbar-width: auto;
+  }
+
+  .modal-scroll::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  .modal-scroll::-webkit-scrollbar-thumb {
+    background: #22d3ee;
+    border: 3px solid #0b2540;
+    border-radius: 999px;
+  }
+
+  .modal-scroll::-webkit-scrollbar-track {
+    background: #0b2540;
+    border-radius: 999px;
+  }
+
 }
