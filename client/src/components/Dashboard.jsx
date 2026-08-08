@@ -339,7 +339,7 @@ export default function Dashboard() {
     : '';
 
   const shareUrl = shareSettings?.token
-    ? `${window.location.origin}/?share=${shareSettings.token}`
+    ? `${window.location.origin}/#/share/${shareSettings.token}`
     : '';
 
   const visibleColumnDefinitions = columnState.order

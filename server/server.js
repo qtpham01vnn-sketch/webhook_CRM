@@ -340,7 +340,7 @@ app.post(
 
     const values = {
       pipeline_id: req.params.id,
-      token: currentShare?.token || crypto.randomBytes(24).toString('base64url'),
+      token: currentShare?.token || crypto.randomUUID(),
       password_hash: await hashPassword(password),
       enabled: req.body.enabled !== false,
       visible_columns: visibleColumns,
@@ -360,7 +360,7 @@ app.post(
       data: {
         ...data,
         pipeline_name: pipeline.name,
-        share_url: `${CLIENT_URL.replace(/\/$/, '')}/?share=${data.token}`,
+        share_url: `${CLIENT_URL.replace(/\/$/, '')}/#/share/${data.token}`,
       },
     });
   }),
@@ -378,7 +378,7 @@ app.get(
       .eq('pipeline_id', req.params.id)
       .maybeSingle();
     if (error) throw error;
-    res.json({ data: data ? { ...data, share_url: `${CLIENT_URL.replace(/\/$/, '')}/?share=${data.token}` } : null });
+    res.json({ data: data ? { ...data, share_url: `${CLIENT_URL.replace(/\/$/, '')}/#/share/${data.token}` } : null });
   }),
 );
 
