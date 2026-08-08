@@ -31,6 +31,8 @@ webhook/
 3. Tùy chọn: chạy [`supabase/seed.sql`](./supabase/seed.sql) để thêm ba Pipeline mẫu.
 4. Vào **Project Settings > API**, lấy `Project URL` và `service_role key`.
 
+Để bật sửa/xóa Pipeline và link chia sẻ có mật khẩu, chạy thêm toàn bộ [`supabase/sharing.sql`](./supabase/sharing.sql) sau `schema.sql`.
+
 `service_role key` bỏ qua RLS và có toàn quyền với database. Chỉ lưu khóa này ở server, tuyệt đối không đưa vào biến môi trường Vite hoặc mã frontend.
 
 ## 2. Cấu hình môi trường
@@ -42,6 +44,7 @@ PORT=3001
 CLIENT_URL=http://localhost:5173
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SHARE_TOKEN_SECRET=replace-with-a-long-random-secret
 ```
 
 Tạo file `client/.env` từ `client/.env.example` nếu cần đổi cấu hình mặc định:
@@ -81,6 +84,9 @@ npm run build
 | `POST` | `/api/v1/pipelines` | Tạo Pipeline và sinh slug duy nhất |
 | `GET` | `/api/v1/pipelines/:id/leads?search=...` | Lead theo Pipeline, tìm tên/SĐT |
 | `POST` | `/api/v1/webhook/:slug` | Nhận lead từ form |
+| `PATCH` | `/api/v1/pipelines/:id` | Sửa Pipeline |
+| `DELETE` | `/api/v1/pipelines/:id` | Xóa Pipeline và lead liên quan |
+| `POST` | `/api/v1/pipelines/:id/share` | Tạo/cập nhật link chia sẻ có mật khẩu |
 
 Ví dụ tạo Pipeline:
 
@@ -126,4 +132,3 @@ Webhook cũng nhận `application/x-www-form-urlencoded`. Backend tự nhận bi
 - Giới hạn CORS bằng `CLIENT_URL`; nhiều origin được phân tách bằng dấu phẩy.
 - Không commit file `.env`; luân chuyển `service_role key` ngay nếu bị lộ.
 - Với traffic public lớn, nên bổ sung rate limit, CAPTCHA ở form nguồn và cơ chế chống lead trùng theo nhu cầu nghiệp vụ.
-

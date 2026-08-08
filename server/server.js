@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { promisify } from 'node:util';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
@@ -9,6 +10,9 @@ dotenv.config();
 const PORT = Number(process.env.PORT || 3001);
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SHARE_TOKEN_SECRET = process.env.SHARE_TOKEN_SECRET || SUPABASE_SERVICE_ROLE_KEY;
+const CLIENT_URL = (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim();
+const scryptAsync = promisify(crypto.scrypt);
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error(
@@ -75,6 +79,58 @@ function normalizePhone(input) {
   else if (!phone.startsWith('+')) phone = phone.replace(/^0+/, '0');
 
   return phone || null;
+}
+
+const SHARE_COLUMNS = ['received_at', 'phone', 'note', 'company_name', 'full_name', 'email'];
+
+function sanitizeColumns(value, fallback = SHARE_COLUMNS) {
+  const input = Array.isArray(value) ? value : fallback;
+  const unique = [...new Set(input.filter((column) => SHARE_COLUMNS.includes(column)))];
+  return unique.length ? unique : [...fallback];
+}
+
+async function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derivedKey = await scryptAsync(password, salt, 64);
+  return `${salt}:${Buffer.from(derivedKey).toString('hex')}`;
+}
+
+async function verifyPassword(password, storedHash) {
+  const [salt, storedKey] = String(storedHash || '').split(':');
+  if (!salt || !storedKey) return false;
+  const derivedKey = Buffer.from(await scryptAsync(password, salt, 64));
+  const expectedKey = Buffer.from(storedKey, 'hex');
+  return expectedKey.length === derivedKey.length && crypto.timingSafeEqual(expectedKey, derivedKey);
+}
+
+function signShareAccess(token, expiresAt = Date.now() + 24 * 60 * 60 * 1000) {
+  const payload = `${token}.${expiresAt}`;
+  const signature = crypto.createHmac('sha256', SHARE_TOKEN_SECRET).update(payload).digest('hex');
+  return `${Buffer.from(payload).toString('base64url')}.${signature}`;
+}
+
+function verifyShareAccess(accessToken, expectedToken) {
+  try {
+    const [encodedPayload, signature] = String(accessToken || '').split('.');
+    const payload = Buffer.from(encodedPayload, 'base64url').toString('utf8');
+    const [token, expiresAt] = payload.split('.');
+    const expectedSignature = crypto
+      .createHmac('sha256', SHARE_TOKEN_SECRET)
+      .update(payload)
+      .digest('hex');
+    return (
+      token === expectedToken &&
+      Number(expiresAt) > Date.now() &&
+      signature === expectedSignature
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getBearerToken(req) {
+  const header = String(req.headers.authorization || '');
+  return header.startsWith('Bearer ') ? header.slice(7) : '';
 }
 
 function firstPayloadValue(payload, aliases) {
@@ -206,6 +262,126 @@ app.post(
   }),
 );
 
+app.patch(
+  '/api/v1/pipelines/:id',
+  asyncHandler(async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ message: 'Pipeline ID khong hop le.' });
+    }
+
+    const name = String(req.body.name || '').trim();
+    const description = String(req.body.description || '').trim() || null;
+    const redirectUrl = String(req.body.redirect_url || '').trim() || null;
+    if (!name) return res.status(400).json({ message: 'Ten pipeline la bat buoc.' });
+
+    if (redirectUrl) {
+      try {
+        const parsedUrl = new URL(redirectUrl);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error();
+      } catch {
+        return res.status(400).json({ message: 'redirect_url phai la URL http/https hop le.' });
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('pipelines')
+      .update({ name, description, redirect_url: redirectUrl })
+      .eq('id', req.params.id)
+      .select('*')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ message: 'Khong tim thay pipeline.' });
+    res.json({ data });
+  }),
+);
+
+app.delete(
+  '/api/v1/pipelines/:id',
+  asyncHandler(async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ message: 'Pipeline ID khong hop le.' });
+    }
+    const { error } = await supabase.from('pipelines').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.status(204).send();
+  }),
+);
+
+app.post(
+  '/api/v1/pipelines/:id/share',
+  asyncHandler(async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ message: 'Pipeline ID khong hop le.' });
+    }
+
+    const password = String(req.body.password || '');
+    if (password.length < 4) {
+      return res.status(400).json({ message: 'Mat khau chia se phai co it nhat 4 ky tu.' });
+    }
+
+    const { data: pipeline, error: pipelineError } = await supabase
+      .from('pipelines')
+      .select('id, name')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (pipelineError) throw pipelineError;
+    if (!pipeline) return res.status(404).json({ message: 'Khong tim thay pipeline.' });
+
+    const visibleColumns = sanitizeColumns(req.body.visible_columns);
+    const columnOrder = sanitizeColumns(req.body.column_order, SHARE_COLUMNS).filter((column) =>
+      visibleColumns.includes(column),
+    );
+    const { data: currentShare, error: currentError } = await supabase
+      .from('pipeline_shares')
+      .select('id, token')
+      .eq('pipeline_id', req.params.id)
+      .maybeSingle();
+    if (currentError) throw currentError;
+
+    const values = {
+      pipeline_id: req.params.id,
+      token: currentShare?.token || crypto.randomBytes(24).toString('base64url'),
+      password_hash: await hashPassword(password),
+      enabled: req.body.enabled !== false,
+      visible_columns: visibleColumns,
+      column_order: columnOrder.length ? columnOrder : visibleColumns,
+      updated_at: new Date().toISOString(),
+    };
+
+    const query = currentShare
+      ? supabase.from('pipeline_shares').update(values).eq('id', currentShare.id)
+      : supabase.from('pipeline_shares').insert(values);
+    const { data, error } = await query
+      .select('id, pipeline_id, token, enabled, visible_columns, column_order, updated_at')
+      .single();
+    if (error) throw error;
+
+    res.json({
+      data: {
+        ...data,
+        pipeline_name: pipeline.name,
+        share_url: `${CLIENT_URL.replace(/\/$/, '')}/?share=${data.token}`,
+      },
+    });
+  }),
+);
+
+app.get(
+  '/api/v1/pipelines/:id/share',
+  asyncHandler(async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ message: 'Pipeline ID khong hop le.' });
+    }
+    const { data, error } = await supabase
+      .from('pipeline_shares')
+      .select('id, pipeline_id, token, enabled, visible_columns, column_order, updated_at')
+      .eq('pipeline_id', req.params.id)
+      .maybeSingle();
+    if (error) throw error;
+    res.json({ data: data ? { ...data, share_url: `${CLIENT_URL.replace(/\/$/, '')}/?share=${data.token}` } : null });
+  }),
+);
+
 app.get(
   '/api/v1/pipelines/:id/leads',
   asyncHandler(async (req, res) => {
@@ -243,6 +419,66 @@ app.get(
       data,
       pagination: { page, limit, total: count || 0 },
     });
+  }),
+);
+
+app.post(
+  '/api/v1/share/:token/access',
+  asyncHandler(async (req, res) => {
+    const { data: share, error } = await supabase
+      .from('pipeline_shares')
+      .select('token, pipeline_id, enabled, password_hash, visible_columns, column_order, pipelines(name)')
+      .eq('token', req.params.token)
+      .maybeSingle();
+    if (error) throw error;
+    if (!share || !share.enabled) return res.status(404).json({ message: 'Lien chia se khong ton tai.' });
+
+    const valid = await verifyPassword(String(req.body.password || ''), share.password_hash);
+    if (!valid) return res.status(401).json({ message: 'Mat khau chia se khong dung.' });
+
+    res.json({
+      data: {
+        access_token: signShareAccess(share.token),
+        pipeline_id: share.pipeline_id,
+        pipeline_name: share.pipelines?.name || 'Lead share',
+        visible_columns: sanitizeColumns(share.visible_columns),
+        column_order: sanitizeColumns(share.column_order),
+      },
+    });
+  }),
+);
+
+app.get(
+  '/api/v1/share/:token/leads',
+  asyncHandler(async (req, res) => {
+    if (!verifyShareAccess(getBearerToken(req), req.params.token)) {
+      return res.status(401).json({ message: 'Phien chia se da het han hoac khong hop le.' });
+    }
+
+    const { data: share, error: shareError } = await supabase
+      .from('pipeline_shares')
+      .select('pipeline_id, enabled, visible_columns, column_order')
+      .eq('token', req.params.token)
+      .maybeSingle();
+    if (shareError) throw shareError;
+    if (!share || !share.enabled) return res.status(404).json({ message: 'Lien chia se khong ton tai.' });
+
+    const { data, error } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('pipeline_id', share.pipeline_id)
+      .order('received_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+
+    const visibleColumns = sanitizeColumns(share.visible_columns);
+    const columnOrder = sanitizeColumns(share.column_order).filter((column) =>
+      visibleColumns.includes(column),
+    );
+    const safeData = (data || []).map((lead) =>
+      Object.fromEntries(columnOrder.map((column) => [column, lead[column] ?? null])),
+    );
+    res.json({ data: safeData, columns: columnOrder });
   }),
 );
 

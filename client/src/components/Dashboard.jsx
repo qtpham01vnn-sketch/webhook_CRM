@@ -4,12 +4,21 @@ import {
   Check,
   ChevronDown,
   Clipboard,
+  Copy,
+  Eye,
+  EyeOff,
+  GripVertical,
   Inbox,
   Link2,
   LoaderCircle,
+  MoreVertical,
   Menu,
+  Pencil,
   Plus,
   Search,
+  Settings2,
+  Share2,
+  Trash2,
   Webhook,
   X,
 } from 'lucide-react';
@@ -23,6 +32,17 @@ const badgeColors = [
   'bg-amber-100 text-amber-700',
   'bg-rose-100 text-rose-700',
 ];
+
+const COLUMN_DEFINITIONS = [
+  { key: 'received_at', label: 'Received At' },
+  { key: 'phone', label: 'Số điện thoại' },
+  { key: 'note', label: 'Nội dung tư vấn' },
+  { key: 'company_name', label: 'Tên doanh nghiệp' },
+  { key: 'full_name', label: 'Họ tên' },
+  { key: 'email', label: 'Email' },
+];
+
+const DEFAULT_COLUMN_ORDER = COLUMN_DEFINITIONS.map((column) => column.key);
 
 function formatDate(value) {
   if (!value) return '—';
@@ -44,12 +64,12 @@ function initials(name) {
     .toUpperCase();
 }
 
-function PipelineForm({ busy, error, onCancel, onSubmit }) {
-  const [form, setForm] = useState({
-    name: '',
-    description: '',
-    redirect_url: '',
-  });
+function PipelineForm({ busy, error, initialValue, onCancel, onSubmit, submitLabel = 'Tạo Pipeline' }) {
+  const [form, setForm] = useState(() => ({
+    name: initialValue?.name || '',
+    description: initialValue?.description || '',
+    redirect_url: initialValue?.redirect_url || '',
+  }));
 
   const update = (event) =>
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -116,7 +136,7 @@ function PipelineForm({ busy, error, onCancel, onSubmit }) {
           type="submit"
         >
           {busy && <LoaderCircle className="animate-spin" size={17} />}
-          Tạo Pipeline
+          {submitLabel}
         </button>
       </div>
     </form>
@@ -141,6 +161,143 @@ function EmptyLeads({ searching }) {
   );
 }
 
+function ColumnEditor({ order, visible, onChange }) {
+  const [dragging, setDragging] = useState(null);
+
+  function moveColumn(target) {
+    if (!dragging || dragging === target) return;
+    const next = [...order];
+    const from = next.indexOf(dragging);
+    const to = next.indexOf(target);
+    next.splice(from, 1);
+    next.splice(to, 0, dragging);
+    onChange({ order: next, visible });
+    setDragging(null);
+  }
+
+  function toggleColumn(key) {
+    const nextVisible = visible.includes(key)
+      ? visible.filter((column) => column !== key)
+      : [...visible, key];
+    onChange({ order, visible: nextVisible });
+  }
+
+  return (
+    <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+      {order.map((key) => {
+        const definition = COLUMN_DEFINITIONS.find((column) => column.key === key);
+        if (!definition) return null;
+        const shown = visible.includes(key);
+        return (
+          <div
+            className={`flex items-center gap-2 rounded-xl border bg-slate-50 px-3 py-2.5 transition ${dragging === key ? 'border-brand-500 ring-2 ring-brand-500/20' : ''}`}
+            draggable
+            key={key}
+            onDragStart={() => setDragging(key)}
+            onDragEnd={() => setDragging(null)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={() => moveColumn(key)}
+          >
+            <button
+              aria-label={`Kéo cột ${definition.label}`}
+              className="cursor-grab text-slate-400 active:cursor-grabbing"
+              onMouseDown={() => setDragging(key)}
+              type="button"
+            >
+              <GripVertical size={17} />
+            </button>
+            <span className="flex-1 text-sm font-medium text-slate-700">{definition.label}</span>
+            <button
+              aria-label={shown ? `Ẩn ${definition.label}` : `Hiện ${definition.label}`}
+              className={`rounded-lg p-1.5 transition ${shown ? 'text-brand-500 hover:bg-brand-50' : 'text-slate-400 hover:bg-slate-100'}`}
+              onClick={() => toggleColumn(key)}
+              type="button"
+            >
+              {shown ? <Eye size={17} /> : <EyeOff size={17} />}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ShareForm({ busy, copied, error, initialShare, onCancel, onCopy, onSubmit, shareUrl }) {
+  const [password, setPassword] = useState('');
+  const [enabled, setEnabled] = useState(initialShare?.enabled !== false);
+  const [columns, setColumns] = useState({
+    order: initialShare?.column_order?.length ? initialShare.column_order : DEFAULT_COLUMN_ORDER,
+    visible: initialShare?.visible_columns?.length ? initialShare.visible_columns : DEFAULT_COLUMN_ORDER,
+  });
+
+  return (
+    <form
+      className="space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit({ password, enabled, column_order: columns.order, visible_columns: columns.visible });
+      }}
+    >
+      <div className="flex items-center justify-between rounded-xl border bg-slate-50 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">Bật liên kết chia sẻ</p>
+          <p className="mt-0.5 text-xs text-muted">Tắt để vô hiệu hóa link cũ.</p>
+        </div>
+        <button
+          aria-pressed={enabled}
+          className={`relative h-6 w-11 rounded-full transition ${enabled ? 'bg-brand-600' : 'bg-slate-300'}`}
+          onClick={() => setEnabled((current) => !current)}
+          type="button"
+        >
+          <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${enabled ? 'left-6' : 'left-1'}`} />
+        </button>
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Các cột được chia sẻ</p>
+            <p className="mt-0.5 text-xs text-muted">Bấm mắt để ẩn/hiện, kéo biểu tượng để sắp xếp.</p>
+          </div>
+          <Settings2 className="text-brand-500" size={18} />
+        </div>
+        <ColumnEditor order={columns.order} visible={columns.visible} onChange={setColumns} />
+      </div>
+
+      <label className="block">
+        <span className="mb-2 block text-sm font-medium text-slate-700">Mật khẩu chia sẻ (tối thiểu 4 ký tự)</span>
+        <input
+          className="w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10"
+          minLength={4}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder={initialShare ? 'Nhập mật khẩu mới để cập nhật' : 'Đặt mật khẩu cho người nhận'}
+          required
+          type="password"
+          value={password}
+        />
+      </label>
+      {shareUrl && (
+        <div className="rounded-xl border bg-slate-50 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Link chia sẻ</p>
+          <div className="flex gap-2">
+            <input className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-xs text-slate-700" readOnly value={shareUrl} />
+            <button className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100" onClick={onCopy} type="button">
+              {copied ? <Check size={14} /> : <Copy size={14} />}{copied ? 'Đã copy' : 'Copy'}
+            </button>
+          </div>
+        </div>
+      )}
+      {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
+      <div className="flex justify-end gap-3 pt-1">
+        <button className="rounded-xl border px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={onCancel} type="button">Hủy</button>
+        <button className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60" disabled={busy} type="submit">
+          {busy && <LoaderCircle className="animate-spin" size={17} />} Lưu chia sẻ
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function Dashboard() {
   const [pipelines, setPipelines] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -151,11 +308,26 @@ export default function Dashboard() {
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [pageError, setPageError] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [editError, setEditError] = useState('');
+  const [shareError, setShareError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareSettings, setShareSettings] = useState(null);
+  const [columnState, setColumnState] = useState({
+    order: DEFAULT_COLUMN_ORDER,
+    visible: DEFAULT_COLUMN_ORDER,
+  });
 
   const selectedPipeline = useMemo(
     () => pipelines.find((pipeline) => pipeline.id === selectedId) || null,
@@ -165,6 +337,15 @@ export default function Dashboard() {
   const webhookUrl = selectedPipeline
     ? `${(import.meta.env.VITE_WEBHOOK_BASE_URL || window.location.origin).replace(/\/$/, '')}/api/v1/webhook/${selectedPipeline.webhook_slug}`
     : '';
+
+  const shareUrl = shareSettings?.token
+    ? `${window.location.origin}/?share=${shareSettings.token}`
+    : '';
+
+  const visibleColumnDefinitions = columnState.order
+    .filter((key) => columnState.visible.includes(key))
+    .map((key) => COLUMN_DEFINITIONS.find((column) => column.key === key))
+    .filter(Boolean);
 
   const loadPipelines = useCallback(async () => {
     setLoadingPipelines(true);
@@ -209,6 +390,27 @@ export default function Dashboard() {
     };
   }, [selectedId, debouncedSearch]);
 
+  useEffect(() => {
+    if (!selectedId) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(`tpai-columns-${selectedId}`) || 'null');
+      if (saved?.order?.length && saved?.visible?.length) {
+        setColumnState(saved);
+        return;
+      }
+    } catch {
+      // Ignore malformed local preferences and use defaults.
+    }
+    setColumnState({ order: DEFAULT_COLUMN_ORDER, visible: DEFAULT_COLUMN_ORDER });
+  }, [selectedId]);
+
+  function updateColumns(next) {
+    const safeVisible = next.visible.length ? next.visible : [next.order[0]];
+    const safeState = { order: next.order, visible: safeVisible };
+    setColumnState(safeState);
+    if (selectedId) localStorage.setItem(`tpai-columns-${selectedId}`, JSON.stringify(safeState));
+  }
+
   async function createPipeline(form) {
     setCreating(true);
     setCreateError('');
@@ -224,6 +426,67 @@ export default function Dashboard() {
     }
   }
 
+  async function updatePipeline(form) {
+    if (!selectedPipeline) return;
+    setUpdating(true);
+    setEditError('');
+    try {
+      const response = await crmApi.updatePipeline(selectedPipeline.id, form);
+      setPipelines((current) => current.map((pipeline) => (pipeline.id === response.data.id ? response.data : pipeline)));
+      setEditOpen(false);
+    } catch (error) {
+      setEditError(error.message);
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  async function deletePipeline() {
+    if (!selectedPipeline || !window.confirm(`Xóa pipeline "${selectedPipeline.name}" và toàn bộ lead bên trong?`)) return;
+    setDeleting(true);
+    setPageError('');
+    try {
+      await crmApi.deletePipeline(selectedPipeline.id);
+      const next = pipelines.filter((pipeline) => pipeline.id !== selectedPipeline.id);
+      setPipelines(next);
+      setSelectedId(next[0]?.id || null);
+      setMenuOpen(false);
+    } catch (error) {
+      setPageError(error.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function openShareSettings() {
+    if (!selectedPipeline) return;
+    setShareError('');
+    setShareCopied(false);
+    try {
+      const response = await crmApi.getShare(selectedPipeline.id);
+      setShareSettings(response.data);
+    } catch (error) {
+      // The share table may not have been migrated yet; keep the modal usable for first save.
+      setShareSettings(null);
+      setShareError(error.message);
+    }
+    setShareOpen(true);
+  }
+
+  async function saveShareSettings(input) {
+    if (!selectedPipeline) return;
+    setSharing(true);
+    setShareError('');
+    try {
+      const response = await crmApi.saveShare(selectedPipeline.id, input);
+      setShareSettings(response.data);
+    } catch (error) {
+      setShareError(error.message);
+    } finally {
+      setSharing(false);
+    }
+  }
+
   async function copyWebhook() {
     try {
       await navigator.clipboard.writeText(webhookUrl);
@@ -232,6 +495,13 @@ export default function Dashboard() {
     } catch {
       setCopied(false);
     }
+  }
+
+  async function copyShare() {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setShareCopied(true);
+    window.setTimeout(() => setShareCopied(false), 1800);
   }
 
   function selectPipeline(id) {
@@ -376,6 +646,38 @@ export default function Dashboard() {
               <Webhook size={17} />
               <span className="hidden sm:inline">Webhook</span>
             </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-50 px-3.5 py-2.5 text-sm font-semibold text-brand-600 shadow-sm transition hover:border-brand-500 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={!selectedPipeline}
+              onClick={openShareSettings}
+              type="button"
+            >
+              <Share2 size={17} />
+              <span className="hidden sm:inline">Chia sẻ</span>
+            </button>
+            <div className="relative">
+              <button
+                aria-label="Tùy chọn pipeline"
+                className="rounded-xl border p-2.5 text-slate-500 transition hover:bg-slate-50"
+                onClick={() => setMenuOpen((current) => !current)}
+                type="button"
+              >
+                <MoreVertical size={18} />
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 top-12 z-20 w-52 rounded-xl border bg-white p-1.5 shadow-2xl">
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setEditError(''); setEditOpen(true); setMenuOpen(false); }} type="button">
+                    <Pencil size={16} /> Chỉnh sửa Pipeline
+                  </button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setColumnsOpen(true); setMenuOpen(false); }} type="button">
+                    <Settings2 size={16} /> Tùy chỉnh cột
+                  </button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-rose-300 hover:bg-rose-500/10" disabled={deleting} onClick={deletePipeline} type="button">
+                    <Trash2 size={16} /> {deleting ? 'Đang xóa...' : 'Xóa Pipeline'}
+                  </button>
+                </div>
+              )}
+            </div>
             <button className="hidden items-center gap-2 border-l pl-3 sm:flex" type="button">
               <img
                 alt="TPAI"
@@ -442,53 +744,38 @@ export default function Dashboard() {
                   <table className="w-full min-w-[1100px] border-collapse text-left">
                     <thead>
                       <tr className="border-b bg-slate-50/80 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                        <th className="whitespace-nowrap px-5 py-4">Received At</th>
-                        <th className="whitespace-nowrap px-5 py-4">Số Điện Thoại</th>
-                        <th className="min-w-64 px-5 py-4">Nội Dung Tư Vấn</th>
-                        <th className="min-w-48 px-5 py-4">Tên Doanh Nghiệp</th>
-                        <th className="min-w-44 px-5 py-4">Họ Tên</th>
-                        <th className="min-w-52 px-5 py-4">Email</th>
+                        {visibleColumnDefinitions.map((column) => (
+                          <th className="whitespace-nowrap px-5 py-4" key={column.key}>{column.label}</th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {leads.map((lead) => (
                         <tr className="group transition hover:bg-slate-50/70" key={lead.id}>
-                          <td className="whitespace-nowrap px-5 py-4 text-xs text-muted">
-                            {formatDate(lead.received_at)}
-                          </td>
-                          <td className="whitespace-nowrap px-5 py-4">
-                            <a
-                              className="font-semibold text-brand-700 hover:underline"
-                              href={lead.phone ? `tel:${lead.phone}` : undefined}
-                            >
-                              {lead.phone || '—'}
-                            </a>
-                          </td>
-                          <td className="max-w-xs px-5 py-4 text-sm leading-6 text-slate-600">
-                            <span className="line-clamp-2">{lead.note || '—'}</span>
-                          </td>
-                          <td className="px-5 py-4 text-sm font-medium text-slate-700">
-                            {lead.company_name || '—'}
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2.5">
-                              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
-                                {initials(lead.full_name)}
-                              </span>
-                              <span className="text-sm font-medium text-slate-800">
-                                {lead.full_name || 'Chưa có tên'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-sm text-slate-600">
-                            {lead.email ? (
-                              <a className="hover:text-brand-700 hover:underline" href={`mailto:${lead.email}`}>
-                                {lead.email}
-                              </a>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
+                          {visibleColumnDefinitions.map((column) => {
+                            if (column.key === 'phone') {
+                              return (
+                                <td className="whitespace-nowrap px-5 py-4" key={column.key}>
+                                  <a className="font-semibold text-brand-700 hover:underline" href={lead.phone ? `tel:${lead.phone}` : undefined}>{lead.phone || '—'}</a>
+                                </td>
+                              );
+                            }
+                            if (column.key === 'full_name') {
+                              return (
+                                <td className="px-5 py-4" key={column.key}>
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">{initials(lead.full_name)}</span>
+                                    <span className="text-sm font-medium text-slate-800">{lead.full_name || 'Chưa có tên'}</span>
+                                  </div>
+                                </td>
+                              );
+                            }
+                            return (
+                              <td className="max-w-xs px-5 py-4 text-sm leading-6 text-slate-600" key={column.key}>
+                                {column.key === 'received_at' ? formatDate(lead.received_at) : (lead[column.key] || '—')}
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))}
                     </tbody>
@@ -515,6 +802,52 @@ export default function Dashboard() {
           error={createError}
           onCancel={() => setCreateOpen(false)}
           onSubmit={createPipeline}
+        />
+      </Modal>
+
+      <Modal
+        description="Cập nhật tên, mô tả hoặc URL chuyển hướng của pipeline."
+        onClose={() => setEditOpen(false)}
+        open={editOpen}
+        title="Chỉnh sửa Pipeline"
+      >
+        <PipelineForm
+          busy={updating}
+          error={editError}
+          initialValue={selectedPipeline}
+          onCancel={() => setEditOpen(false)}
+          onSubmit={updatePipeline}
+          submitLabel="Lưu thay đổi"
+        />
+      </Modal>
+
+      <Modal
+        description="Chọn cột hiển thị trên bảng và kéo thả để đổi thứ tự. Thiết lập được lưu trên thiết bị này."
+        onClose={() => setColumnsOpen(false)}
+        open={columnsOpen}
+        title="Tùy chỉnh cột"
+      >
+        <ColumnEditor order={columnState.order} visible={columnState.visible} onChange={updateColumns} />
+        <div className="mt-5 flex justify-end">
+          <button className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700" onClick={() => setColumnsOpen(false)} type="button">Xong</button>
+        </div>
+      </Modal>
+
+      <Modal
+        description="Tạo một link riêng có mật khẩu. Người nhận chỉ thấy những cột anh chọn."
+        onClose={() => setShareOpen(false)}
+        open={shareOpen}
+        title="Chia sẻ danh sách Lead"
+      >
+        <ShareForm
+          busy={sharing}
+          copied={shareCopied}
+          error={shareError}
+          initialShare={shareSettings}
+          onCancel={() => setShareOpen(false)}
+          onCopy={copyShare}
+          onSubmit={saveShareSettings}
+          shareUrl={shareUrl}
         />
       </Modal>
 

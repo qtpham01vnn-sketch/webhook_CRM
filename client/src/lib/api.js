@@ -21,10 +21,19 @@ export const crmApi = {
   getPipelines: () => request('/pipelines'),
   createPipeline: (input) =>
     request('/pipelines', { method: 'POST', body: JSON.stringify(input) }),
+  updatePipeline: (pipelineId, input) =>
+    request(`/pipelines/${pipelineId}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deletePipeline: (pipelineId) => request(`/pipelines/${pipelineId}`, { method: 'DELETE' }),
+  saveShare: (pipelineId, input) =>
+    request(`/pipelines/${pipelineId}/share`, { method: 'POST', body: JSON.stringify(input) }),
+  getShare: (pipelineId) => request(`/pipelines/${pipelineId}/share`),
+  accessShare: (token, password) =>
+    request(`/share/${token}/access`, { method: 'POST', body: JSON.stringify({ password }) }),
+  getSharedLeads: (token, accessToken) =>
+    request(`/share/${token}/leads`, { headers: { Authorization: `Bearer ${accessToken}` } }),
   getLeads: (pipelineId, search = '') => {
     const params = new URLSearchParams({ limit: '100' });
     if (search) params.set('search', search);
     return request(`/pipelines/${pipelineId}/leads?${params}`);
   },
 };
-
