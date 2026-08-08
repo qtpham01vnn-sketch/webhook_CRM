@@ -1,4 +1,3 @@
--- Chay sau schema.sql de luu cau hinh Form nhung theo Pipeline.
 create extension if not exists pgcrypto;
 
 create table if not exists public.pipeline_forms (
