@@ -56,6 +56,13 @@
   .text-slate-800 { color: #e8f5fb !important; }
   .text-slate-900 { color: #f5fbff !important; }
 
+  .text-gradient-brand {
+    background: linear-gradient(100deg, #ffe7a3 0%, #f8cf70 42%, #67e8f9 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent !important;
+  }
+
   .bg-slate-50 { background-color: #102f4c !important; }
   .bg-slate-50\/50 { background-color: rgba(16, 47, 76, 0.52) !important; }
   .bg-slate-50\/70 { background-color: rgba(19, 57, 88, 0.7) !important; }

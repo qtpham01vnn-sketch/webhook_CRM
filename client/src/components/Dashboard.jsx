@@ -10,7 +10,6 @@ import {
   Menu,
   Plus,
   Search,
-  UsersRound,
   Webhook,
   X,
 } from 'lucide-react';
@@ -244,11 +243,13 @@ export default function Dashboard() {
   const sidebar = (
     <aside className="flex h-full w-[280px] shrink-0 flex-col border-r bg-white">
       <div className="flex h-[76px] items-center gap-3 border-b px-6">
-        <div className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-white shadow-sm">
-          <UsersRound size={19} />
-        </div>
+        <img
+          alt="TPAI"
+          className="h-10 w-10 shrink-0 rounded-xl object-cover shadow-[0_0_0_2px_rgba(103,232,249,0.65),0_0_18px_rgba(34,211,238,0.35)]"
+          src="/tpai-avatar.jpg"
+        />
         <div>
-          <p className="text-base font-bold tracking-tight text-ink">TPAI</p>
+          <p className="text-gradient-brand text-base font-bold tracking-tight">TPAI</p>
           <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-brand-600">
             CRM WORKSPACE
           </p>
@@ -353,7 +354,7 @@ export default function Dashboard() {
               <span>/</span>
               <span>Danh sách Lead</span>
             </div>
-            <h1 className="mt-1 truncate text-lg font-semibold tracking-tight text-ink sm:text-xl">
+            <h1 className="text-gradient-brand mt-1 truncate text-lg font-semibold tracking-tight sm:text-xl">
               {selectedPipeline?.name || 'Lead Management'}
             </h1>
           </div>
@@ -376,9 +377,11 @@ export default function Dashboard() {
               <span className="hidden sm:inline">Webhook</span>
             </button>
             <button className="hidden items-center gap-2 border-l pl-3 sm:flex" type="button">
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-sky-500 text-xs font-bold text-white">
-                AZ
-              </span>
+              <img
+                alt="TPAI"
+                className="h-9 w-9 rounded-full object-cover shadow-[0_0_0_2px_rgba(103,232,249,0.7),0_0_16px_rgba(34,211,238,0.35)]"
+                src="/tpai-avatar.jpg"
+              />
               <ChevronDown className="text-slate-400" size={15} />
             </button>
           </div>
@@ -388,7 +391,7 @@ export default function Dashboard() {
           <div className="mx-auto max-w-[1500px]">
             <div className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
-                <h2 className="text-lg font-semibold tracking-tight text-ink">Danh sách Lead</h2>
+                <h2 className="text-gradient-brand text-lg font-semibold tracking-tight">Danh sách Lead</h2>
                 <p className="mt-1 text-sm text-muted">
                   Dữ liệu mới nhất gửi từ form của pipeline này.
                 </p>
