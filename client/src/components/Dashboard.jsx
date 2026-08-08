@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Clipboard,
   Copy,
+  Download,
   Eye,
   EyeOff,
   GripVertical,
@@ -318,6 +319,78 @@ function ShareForm({ busy, copied, error, initialShare, onCancel, onCopy, onSubm
   );
 }
 
+function ExportForm({ busy, currentPipeline, defaultSearch, onCancel, onSubmit }) {
+  const [scope, setScope] = useState(currentPipeline?.id || 'all');
+  const [searchValue, setSearchValue] = useState(defaultSearch || '');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [columns, setColumns] = useState(DEFAULT_COLUMN_ORDER);
+
+  function toggleColumn(key) {
+    setColumns((current) => current.includes(key) ? current.filter((column) => column !== key) : [...current, key]);
+  }
+
+  return (
+    <form
+      className="space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit({ pipelineId: scope, search: searchValue.trim(), from, to, columns });
+      }}
+    >
+      <div>
+        <p className="mb-2 text-sm font-semibold text-slate-800">Phạm vi xuất</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border bg-slate-50 px-3 py-3 text-sm text-slate-700">
+            <input checked={scope === (currentPipeline?.id || 'all')} name="scope" onChange={() => setScope(currentPipeline?.id || 'all')} type="radio" />
+            Pipeline đang chọn
+          </label>
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border bg-slate-50 px-3 py-3 text-sm text-slate-700">
+            <input checked={scope === 'all'} name="scope" onChange={() => setScope('all')} type="radio" />
+            Tất cả Pipeline
+          </label>
+        </div>
+      </div>
+
+      <label className="block">
+        <span className="mb-2 block text-sm font-semibold text-slate-800">Lọc thông minh</span>
+        <input className="w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10" onChange={(event) => setSearchValue(event.target.value)} placeholder="Tên, số điện thoại, email, công ty hoặc nội dung..." value={searchValue} />
+        <span className="mt-1.5 block text-xs text-muted">Tìm đồng thời trên tên, SĐT, email, doanh nghiệp và nội dung tư vấn.</span>
+      </label>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Từ ngày</span><input className="w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-700" onChange={(event) => setFrom(event.target.value)} type="date" value={from} /></label>
+        <label className="block"><span className="mb-2 block text-sm font-medium text-slate-700">Đến ngày</span><input className="w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-slate-700" onChange={(event) => setTo(event.target.value)} type="date" value={to} /></label>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-semibold text-slate-800">Cột trong file CSV</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {COLUMN_DEFINITIONS.map((column) => (
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border bg-slate-50 px-3 py-2.5 text-sm text-slate-700" key={column.key}>
+              <input checked={columns.includes(column.key)} onChange={() => toggleColumn(column.key)} type="checkbox" />
+              {column.label}
+            </label>
+          ))}
+          {scope === 'all' && (
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
+              <input checked={columns.includes('pipeline_name')} onChange={() => toggleColumn('pipeline_name')} type="checkbox" />
+              Pipeline
+            </label>
+          )}
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-1">
+        <button className="rounded-xl border px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={onCancel} type="button">Hủy</button>
+        <button className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60" disabled={busy || columns.length === 0} type="submit">
+          {busy && <LoaderCircle className="animate-spin" size={17} />} Tải CSV
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function Dashboard() {
   const [pipelines, setPipelines] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -331,6 +404,7 @@ export default function Dashboard() {
   const [editOpen, setEditOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -338,9 +412,11 @@ export default function Dashboard() {
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [createError, setCreateError] = useState('');
   const [editError, setEditError] = useState('');
   const [shareError, setShareError] = useState('');
+  const [exportError, setExportError] = useState('');
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [shareSettings, setShareSettings] = useState(null);
@@ -524,6 +600,27 @@ export default function Dashboard() {
     window.setTimeout(() => setShareCopied(false), 1800);
   }
 
+  async function exportCsv(filters) {
+    setExporting(true);
+    setExportError('');
+    try {
+      const result = await crmApi.exportLeads(filters);
+      const downloadUrl = URL.createObjectURL(result.blob);
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = decodeURIComponent(result.filename);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(downloadUrl);
+      setExportOpen(false);
+    } catch (error) {
+      setExportError(error.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function selectPipeline(id) {
     setSelectedId(id);
     setSearch('');
@@ -692,6 +789,9 @@ export default function Dashboard() {
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setColumnsOpen(true); setMenuOpen(false); }} type="button">
                     <Settings2 size={16} /> Tùy chỉnh cột
                   </button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setExportError(''); setExportOpen(true); setMenuOpen(false); }} type="button">
+                    <Download size={16} /> Xuất CSV
+                  </button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-rose-300 hover:bg-rose-500/10" disabled={deleting} onClick={deletePipeline} type="button">
                     <Trash2 size={16} /> {deleting ? 'Đang xóa...' : 'Xóa Pipeline'}
                   </button>
@@ -851,6 +951,22 @@ export default function Dashboard() {
         <div className="mt-5 flex justify-end">
           <button className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700" onClick={() => setColumnsOpen(false)} type="button">Xong</button>
         </div>
+      </Modal>
+
+      <Modal
+        description="Xuất dữ liệu của Pipeline đang chọn hoặc toàn bộ Pipeline thành file CSV mở bằng Excel."
+        onClose={() => setExportOpen(false)}
+        open={exportOpen}
+        title="Xuất CSV Lead"
+      >
+        <ExportForm
+          busy={exporting}
+          currentPipeline={selectedPipeline}
+          defaultSearch={search}
+          onCancel={() => setExportOpen(false)}
+          onSubmit={exportCsv}
+        />
+        {exportError && <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{exportError}</p>}
       </Modal>
 
       <Modal

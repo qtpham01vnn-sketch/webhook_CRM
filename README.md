@@ -87,6 +87,7 @@ npm run build
 | `PATCH` | `/api/v1/pipelines/:id` | Sửa Pipeline |
 | `DELETE` | `/api/v1/pipelines/:id` | Xóa Pipeline và lead liên quan |
 | `POST` | `/api/v1/pipelines/:id/share` | Tạo/cập nhật link chia sẻ có mật khẩu |
+| `GET` | `/api/v1/export/leads.csv` | Xuất CSV theo Pipeline, từ khóa, ngày và cột |
 
 Ví dụ tạo Pipeline:
 

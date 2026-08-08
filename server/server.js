@@ -82,6 +82,7 @@ function normalizePhone(input) {
 }
 
 const SHARE_COLUMNS = ['received_at', 'phone', 'note', 'company_name', 'full_name', 'email'];
+const EXPORT_COLUMNS = ['pipeline_name', ...SHARE_COLUMNS];
 
 function sanitizeColumns(value, fallback = SHARE_COLUMNS) {
   const input = Array.isArray(value) ? value : fallback;
@@ -131,6 +132,22 @@ function verifyShareAccess(accessToken, expectedToken) {
 function getBearerToken(req) {
   const header = String(req.headers.authorization || '');
   return header.startsWith('Bearer ') ? header.slice(7) : '';
+}
+
+function csvCell(value) {
+  const text = value === undefined || value === null ? '' : String(value);
+  return `"${text.replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+}
+
+function parseDateFilter(value) {
+  if (!value) return null;
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function csvFilename(scope) {
+  const date = new Date().toISOString().slice(0, 10);
+  return `tpai-crm-${scope || 'all-pipelines'}-${date}.csv`;
 }
 
 function firstPayloadValue(payload, aliases) {
@@ -438,6 +455,68 @@ app.get(
       data,
       pagination: { page, limit, total: count || 0 },
     });
+  }),
+);
+
+app.get(
+  '/api/v1/export/leads.csv',
+  asyncHandler(async (req, res) => {
+    const pipelineId = String(req.query.pipeline_id || '').trim();
+    if (pipelineId && pipelineId !== 'all' && !isUuid(pipelineId)) {
+      return res.status(400).json({ message: 'Pipeline ID khong hop le.' });
+    }
+
+    const search = String(req.query.search || '').trim().slice(0, 120);
+    const from = parseDateFilter(req.query.from);
+    const rawTo = String(req.query.to || '');
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+      ? new Date(`${rawTo}T23:59:59.999Z`).toISOString()
+      : parseDateFilter(rawTo);
+    const requestedColumns = String(req.query.columns || '')
+      .split(',')
+      .map((column) => column.trim())
+      .filter((column) => EXPORT_COLUMNS.includes(column));
+    const columns = requestedColumns.length ? [...new Set(requestedColumns)] : [...EXPORT_COLUMNS];
+
+    let query = supabase
+      .from('leads')
+      .select('id, pipeline_id, full_name, phone, email, note, company_name, received_at, pipelines(name)')
+      .order('received_at', { ascending: false })
+      .limit(10000);
+
+    if (pipelineId && pipelineId !== 'all') query = query.eq('pipeline_id', pipelineId);
+    if (search) {
+      const safeSearch = search.replace(/[(),]/g, ' ');
+      query = query.or(
+        `full_name.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%,company_name.ilike.%${safeSearch}%,note.ilike.%${safeSearch}%`,
+      );
+    }
+    if (from) query = query.gte('received_at', from);
+    if (to) query = query.lte('received_at', to);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const labels = {
+      pipeline_name: 'Pipeline',
+      received_at: 'Received At',
+      phone: 'Số điện thoại',
+      note: 'Nội dung tư vấn',
+      company_name: 'Tên doanh nghiệp',
+      full_name: 'Họ tên',
+      email: 'Email',
+    };
+    const lines = [
+      columns.map((column) => csvCell(labels[column] || column)).join(','),
+      ...(data || []).map((lead) => {
+        const row = { ...lead, pipeline_name: lead.pipelines?.name || '' };
+        return columns.map((column) => csvCell(row[column])).join(',');
+      }),
+    ];
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(csvFilename(pipelineId === 'all' ? 'all-pipelines' : pipelineId))}`);
+    res.send(`\uFEFF${lines.join('\r\n')}`);
   }),
 );
 
