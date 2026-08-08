@@ -248,9 +248,9 @@ export default function Dashboard() {
           <UsersRound size={19} />
         </div>
         <div>
-          <p className="text-base font-bold tracking-tight text-ink">Leadflow</p>
+          <p className="text-base font-bold tracking-tight text-ink">TPAI</p>
           <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-brand-600">
-            CRM Workspace
+            CRM WORKSPACE
           </p>
         </div>
         <button
@@ -545,4 +545,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
