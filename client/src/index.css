@@ -10,11 +10,16 @@
   }
 
   html {
-    color-scheme: light;
+    color-scheme: dark;
   }
 
   body {
     @apply m-0 min-w-[320px] bg-canvas font-sans text-ink antialiased;
+    background-image:
+      radial-gradient(circle at 12% 4%, rgba(34, 211, 238, 0.15), transparent 30%),
+      radial-gradient(circle at 88% 90%, rgba(59, 130, 246, 0.14), transparent 32%),
+      linear-gradient(135deg, #061425 0%, #071c33 52%, #061425 100%);
+    background-attachment: fixed;
   }
 
   button,
@@ -25,9 +30,39 @@
 }
 
 @layer utilities {
+  .bg-canvas {
+    background-image:
+      radial-gradient(circle at 12% 4%, rgba(34, 211, 238, 0.12), transparent 30%),
+      radial-gradient(circle at 88% 90%, rgba(59, 130, 246, 0.12), transparent 32%),
+      linear-gradient(135deg, #061425 0%, #071c33 52%, #061425 100%) !important;
+  }
+
+  /* Panels and controls use a translucent navy surface instead of white. */
+  .bg-white {
+    background-color: rgba(9, 32, 56, 0.9) !important;
+  }
+
+  .border-white {
+    border-color: rgba(148, 226, 255, 0.2) !important;
+  }
+
   .scrollbar-subtle {
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: #2a5875 transparent;
     scrollbar-width: thin;
   }
-}
 
+  .scrollbar-subtle::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-thumb {
+    background: #2a5875;
+    border-radius: 999px;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+}
