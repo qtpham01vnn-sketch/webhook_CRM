@@ -39,6 +39,9 @@ export const crmApi = {
   saveShare: (pipelineId, input) =>
     request(`/pipelines/${pipelineId}/share`, { method: 'POST', body: JSON.stringify(input) }),
   getShare: (pipelineId) => request(`/pipelines/${pipelineId}/share`),
+  getForm: (pipelineId) => request(`/pipelines/${pipelineId}/form`),
+  saveForm: (pipelineId, input) =>
+    request(`/pipelines/${pipelineId}/form`, { method: 'POST', body: JSON.stringify(input) }),
   accessShare: (token, password) =>
     request(`/share/${token}/access`, { method: 'POST', body: JSON.stringify({ password }) }),
   getSharedLeads: (token, accessToken) =>

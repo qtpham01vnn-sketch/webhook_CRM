@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Clipboard,
   Copy,
+  Code2,
   Download,
   Eye,
   EyeOff,
@@ -19,6 +20,7 @@ import {
   Search,
   Settings2,
   Share2,
+  Save,
   Trash2,
   Webhook,
   X,
@@ -44,6 +46,21 @@ const COLUMN_DEFINITIONS = [
 ];
 
 const DEFAULT_COLUMN_ORDER = COLUMN_DEFINITIONS.map((column) => column.key);
+
+const FORM_FIELD_OPTIONS = [
+  { key: 'full_name', label: 'Họ và tên', type: 'text', required: true },
+  { key: 'phone', label: 'Số điện thoại', type: 'tel', required: true },
+  { key: 'email', label: 'Email', type: 'email', required: false },
+  { key: 'note', label: 'Nội dung tư vấn', type: 'textarea', required: false },
+  { key: 'company_name', label: 'Tên doanh nghiệp', type: 'text', required: false },
+];
+
+const DEFAULT_FORM_CONFIG = {
+  fields: FORM_FIELD_OPTIONS,
+  title: 'Đăng ký tư vấn',
+  submit_label: 'Gửi thông tin',
+  success_message: 'Cảm ơn anh/chị! Thông tin đã được gửi thành công.',
+};
 
 function formatDate(value) {
   if (!value) return '—';
@@ -391,6 +408,72 @@ function ExportForm({ busy, currentPipeline, defaultSearch, onCancel, onSubmit }
   );
 }
 
+function FormBuilder({ busy, copied, config, embedCode, error, onCancel, onChange, onCopy, onSubmit }) {
+  function toggleField(option) {
+    const exists = config.fields.some((field) => field.key === option.key);
+    const fields = exists
+      ? config.fields.filter((field) => field.key !== option.key)
+      : [...config.fields, option];
+    onChange({ ...config, fields: fields.length ? fields : [FORM_FIELD_OPTIONS[0]] });
+  }
+
+  function updateFieldLabel(key, label) {
+    onChange({ ...config, fields: config.fields.map((field) => field.key === key ? { ...field, label } : field) });
+  }
+
+  return (
+    <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); onSubmit(config); }}>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="space-y-5">
+          <div>
+            <p className="mb-2 text-sm font-semibold text-slate-800">Thêm trường</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {FORM_FIELD_OPTIONS.map((option) => {
+                const selected = config.fields.some((field) => field.key === option.key);
+                return (
+                  <button className={`flex items-center gap-2 rounded-xl border px-3 py-3 text-left text-sm font-medium transition ${selected ? 'border-brand-500 bg-brand-50 text-brand-600' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'}`} key={option.key} onClick={() => toggleField(option)} type="button">
+                    <input checked={selected} readOnly type="checkbox" /> {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-slate-800">Cấu hình nội dung</p>
+            <label className="block"><span className="mb-1.5 block text-xs font-medium text-slate-600">Tiêu đề Form</span><input className="w-full rounded-xl border bg-white px-3 py-2.5 text-sm" onChange={(event) => onChange({ ...config, title: event.target.value })} value={config.title} /></label>
+            <label className="block"><span className="mb-1.5 block text-xs font-medium text-slate-600">Nhãn nút gửi</span><input className="w-full rounded-xl border bg-white px-3 py-2.5 text-sm" onChange={(event) => onChange({ ...config, submit_label: event.target.value })} value={config.submit_label} /></label>
+            <label className="block"><span className="mb-1.5 block text-xs font-medium text-slate-600">Thông báo thành công</span><textarea className="min-h-20 w-full resize-none rounded-xl border bg-white px-3 py-2.5 text-sm" onChange={(event) => onChange({ ...config, success_message: event.target.value })} value={config.success_message} /></label>
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-semibold text-slate-800">Tên hiển thị trường</p>
+            <div className="space-y-2">
+              {config.fields.map((field) => <input className="w-full rounded-lg border bg-white px-3 py-2 text-sm" key={field.key} onChange={(event) => updateFieldLabel(field.key, event.target.value)} value={field.label} />)}
+            </div>
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-semibold text-slate-800">Xem trước & Tương tác</p>
+          <div className="rounded-2xl border bg-slate-50 p-5">
+            <div className="rounded-xl bg-white p-5 shadow-sm">
+              <h3 className="mb-4 text-lg font-semibold text-slate-800">{config.title || 'Đăng ký tư vấn'}</h3>
+              <div className="space-y-3">
+                {config.fields.map((field) => <div key={field.key}><p className="mb-1.5 text-xs font-semibold text-slate-600">{field.label}{field.required ? <span className="text-rose-500"> *</span> : null}</p>{field.type === 'textarea' ? <div className="h-16 rounded-lg border bg-white" /> : <div className="h-10 rounded-lg border bg-white" />}</div>)}
+                <div className="rounded-lg bg-brand-600 py-3 text-center text-sm font-semibold text-white">{config.submit_label || 'Gửi thông tin'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div className="mb-2 flex items-center justify-between"><p className="text-sm font-semibold text-slate-800">Mã nhúng</p><button className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={onCopy} type="button">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Đã copy' : 'Copy'}</button></div>
+        <textarea className="min-h-32 w-full resize-y rounded-xl border bg-slate-50 px-3 py-3 font-mono text-xs leading-5 text-slate-700" readOnly value={embedCode} />
+      </div>
+      {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
+      <div className="flex justify-end gap-3"><button className="rounded-xl border px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={onCancel} type="button">Hủy</button><button className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60" disabled={busy} type="submit">{busy ? <LoaderCircle className="animate-spin" size={17} /> : <Save size={17} />} Lưu Form</button></div>
+    </form>
+  );
+}
+
 export default function Dashboard() {
   const [pipelines, setPipelines] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -405,6 +488,7 @@ export default function Dashboard() {
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -413,13 +497,17 @@ export default function Dashboard() {
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [savingForm, setSavingForm] = useState(false);
   const [createError, setCreateError] = useState('');
   const [editError, setEditError] = useState('');
   const [shareError, setShareError] = useState('');
   const [exportError, setExportError] = useState('');
+  const [formError, setFormError] = useState('');
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [formCopied, setFormCopied] = useState(false);
   const [shareSettings, setShareSettings] = useState(null);
+  const [formSettings, setFormSettings] = useState(DEFAULT_FORM_CONFIG);
   const [columnState, setColumnState] = useState({
     order: DEFAULT_COLUMN_ORDER,
     visible: DEFAULT_COLUMN_ORDER,
@@ -436,6 +524,13 @@ export default function Dashboard() {
 
   const shareUrl = shareSettings?.token
     ? `${window.location.origin}/#/share/${shareSettings.token}`
+    : '';
+
+  const embedUrl = selectedPipeline
+    ? `${window.location.origin}/#/embed/${selectedPipeline.webhook_slug}`
+    : '';
+  const embedCode = embedUrl
+    ? `<!-- TPAI CRM Embed Form -->\n<iframe src="${embedUrl}" title="${selectedPipeline.name.replace(/"/g, '&quot;')}" style="width:100%;min-height:520px;border:0" loading="lazy"></iframe>`
     : '';
 
   const visibleColumnDefinitions = columnState.order
@@ -581,6 +676,41 @@ export default function Dashboard() {
     } finally {
       setSharing(false);
     }
+  }
+
+  async function openFormBuilder() {
+    if (!selectedPipeline) return;
+    setFormError('');
+    setFormCopied(false);
+    try {
+      const response = await crmApi.getForm(selectedPipeline.id);
+      setFormSettings(response.data);
+    } catch (error) {
+      setFormSettings(DEFAULT_FORM_CONFIG);
+      setFormError(error.message);
+    }
+    setFormOpen(true);
+  }
+
+  async function saveFormSettings(input) {
+    if (!selectedPipeline) return;
+    setSavingForm(true);
+    setFormError('');
+    try {
+      const response = await crmApi.saveForm(selectedPipeline.id, input);
+      setFormSettings(response.data);
+    } catch (error) {
+      setFormError(error.message);
+    } finally {
+      setSavingForm(false);
+    }
+  }
+
+  async function copyEmbedCode() {
+    if (!embedCode) return;
+    await navigator.clipboard.writeText(embedCode);
+    setFormCopied(true);
+    window.setTimeout(() => setFormCopied(false), 1800);
   }
 
   async function copyWebhook() {
@@ -792,6 +922,9 @@ export default function Dashboard() {
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setExportError(''); setExportOpen(true); setMenuOpen(false); }} type="button">
                     <Download size={16} /> Xuất CSV
                   </button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { openFormBuilder(); setMenuOpen(false); }} type="button">
+                    <Code2 size={16} /> Nhúng Form
+                  </button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-rose-300 hover:bg-rose-500/10" disabled={deleting} onClick={deletePipeline} type="button">
                     <Trash2 size={16} /> {deleting ? 'Đang xóa...' : 'Xóa Pipeline'}
                   </button>
@@ -967,6 +1100,26 @@ export default function Dashboard() {
           onSubmit={exportCsv}
         />
         {exportError && <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{exportError}</p>}
+      </Modal>
+
+      <Modal
+        description="Chọn trường, xem trước và copy mã iframe để nhúng form vào Website hoặc Landing Page."
+        onClose={() => setFormOpen(false)}
+        open={formOpen}
+        title="Trình tạo Form & Mã nhúng"
+        wide
+      >
+        <FormBuilder
+          busy={savingForm}
+          copied={formCopied}
+          config={formSettings}
+          embedCode={embedCode}
+          error={formError}
+          onCancel={() => setFormOpen(false)}
+          onChange={setFormSettings}
+          onCopy={copyEmbedCode}
+          onSubmit={saveFormSettings}
+        />
       </Modal>
 
       <Modal

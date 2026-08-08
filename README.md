@@ -31,7 +31,7 @@ webhook/
 3. Tùy chọn: chạy [`supabase/seed.sql`](./supabase/seed.sql) để thêm ba Pipeline mẫu.
 4. Vào **Project Settings > API**, lấy `Project URL` và `service_role key`.
 
-Để bật sửa/xóa Pipeline và link chia sẻ có mật khẩu, chạy thêm toàn bộ [`supabase/sharing.sql`](./supabase/sharing.sql) sau `schema.sql`.
+Để bật sửa/xóa Pipeline và link chia sẻ có mật khẩu, chạy thêm toàn bộ [`supabase/sharing.sql`](./supabase/sharing.sql) sau `schema.sql`. Để lưu cấu hình Form nhúng, chạy thêm [`supabase/embed.sql`](./supabase/embed.sql).
 
 `service_role key` bỏ qua RLS và có toàn quyền với database. Chỉ lưu khóa này ở server, tuyệt đối không đưa vào biến môi trường Vite hoặc mã frontend.
 
@@ -88,6 +88,8 @@ npm run build
 | `DELETE` | `/api/v1/pipelines/:id` | Xóa Pipeline và lead liên quan |
 | `POST` | `/api/v1/pipelines/:id/share` | Tạo/cập nhật link chia sẻ có mật khẩu |
 | `GET` | `/api/v1/export/leads.csv` | Xuất CSV theo Pipeline, từ khóa, ngày và cột |
+| `GET` | `/api/v1/embed/:slug/config` | Cấu hình Form nhúng công khai |
+| `POST` | `/api/v1/pipelines/:id/form` | Lưu cấu hình Form nhúng |
 
 Ví dụ tạo Pipeline:
 

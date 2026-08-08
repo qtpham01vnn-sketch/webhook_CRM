@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
 
-export default function Modal({ open, title, description, children, onClose }) {
+export default function Modal({ open, title, description, children, onClose, wide = false }) {
   useEffect(() => {
     if (!open) return undefined;
     const onKeyDown = (event) => event.key === 'Escape' && onClose();
@@ -24,7 +24,7 @@ export default function Modal({ open, title, description, children, onClose }) {
     >
       <section
         aria-modal="true"
-        className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+        className={`w-full ${wide ? 'max-w-5xl' : 'max-w-lg'} rounded-2xl bg-white p-6 shadow-2xl`}
         role="dialog"
       >
         <div className="flex items-start justify-between gap-4">
@@ -48,4 +48,3 @@ export default function Modal({ open, title, description, children, onClose }) {
     </div>
   );
 }
-

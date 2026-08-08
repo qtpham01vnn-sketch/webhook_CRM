@@ -83,11 +83,31 @@ function normalizePhone(input) {
 
 const SHARE_COLUMNS = ['received_at', 'phone', 'note', 'company_name', 'full_name', 'email'];
 const EXPORT_COLUMNS = ['pipeline_name', ...SHARE_COLUMNS];
+const FORM_FIELD_DEFINITIONS = {
+  full_name: { key: 'full_name', label: 'Họ và tên', type: 'text', required: true },
+  phone: { key: 'phone', label: 'Số điện thoại', type: 'tel', required: true },
+  email: { key: 'email', label: 'Email', type: 'email', required: false },
+  note: { key: 'note', label: 'Nội dung tư vấn', type: 'textarea', required: false },
+  company_name: { key: 'company_name', label: 'Tên doanh nghiệp', type: 'text', required: false },
+};
+const DEFAULT_FORM_FIELDS = Object.values(FORM_FIELD_DEFINITIONS);
 
 function sanitizeColumns(value, fallback = SHARE_COLUMNS) {
   const input = Array.isArray(value) ? value : fallback;
   const unique = [...new Set(input.filter((column) => SHARE_COLUMNS.includes(column)))];
   return unique.length ? unique : [...fallback];
+}
+
+function sanitizeFormFields(value) {
+  if (!Array.isArray(value)) return DEFAULT_FORM_FIELDS;
+  const fields = value
+    .filter((field) => field && FORM_FIELD_DEFINITIONS[field.key])
+    .map((field) => ({
+      ...FORM_FIELD_DEFINITIONS[field.key],
+      label: String(field.label || FORM_FIELD_DEFINITIONS[field.key].label).trim().slice(0, 80),
+      required: Boolean(field.required),
+    }));
+  return fields.length ? fields : DEFAULT_FORM_FIELDS;
 }
 
 async function hashPassword(password) {
@@ -321,6 +341,90 @@ app.delete(
     const { error } = await supabase.from('pipelines').delete().eq('id', req.params.id);
     if (error) throw error;
     res.status(204).send();
+  }),
+);
+
+app.get(
+  '/api/v1/pipelines/:id/form',
+  asyncHandler(async (req, res) => {
+    if (!isUuid(req.params.id)) return res.status(400).json({ message: 'Pipeline ID khong hop le.' });
+    const { data, error } = await supabase
+      .from('pipeline_forms')
+      .select('id, pipeline_id, fields, title, submit_label, success_message, updated_at')
+      .eq('pipeline_id', req.params.id)
+      .maybeSingle();
+    if (error) throw error;
+    res.json({
+      data: data || {
+        pipeline_id: req.params.id,
+        fields: DEFAULT_FORM_FIELDS,
+        title: 'Đăng ký tư vấn',
+        submit_label: 'Gửi thông tin',
+        success_message: 'Cảm ơn anh/chị! Thông tin đã được gửi thành công.',
+      },
+    });
+  }),
+);
+
+app.post(
+  '/api/v1/pipelines/:id/form',
+  asyncHandler(async (req, res) => {
+    if (!isUuid(req.params.id)) return res.status(400).json({ message: 'Pipeline ID khong hop le.' });
+    const { data: pipeline, error: pipelineError } = await supabase
+      .from('pipelines')
+      .select('id')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (pipelineError) throw pipelineError;
+    if (!pipeline) return res.status(404).json({ message: 'Khong tim thay pipeline.' });
+
+    const values = {
+      pipeline_id: req.params.id,
+      fields: sanitizeFormFields(req.body.fields),
+      title: String(req.body.title || 'Đăng ký tư vấn').trim().slice(0, 120) || 'Đăng ký tư vấn',
+      submit_label: String(req.body.submit_label || 'Gửi thông tin').trim().slice(0, 60) || 'Gửi thông tin',
+      success_message: String(req.body.success_message || 'Cảm ơn anh/chị! Thông tin đã được gửi thành công.').trim().slice(0, 240),
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('pipeline_forms')
+      .upsert(values, { onConflict: 'pipeline_id' })
+      .select('id, pipeline_id, fields, title, submit_label, success_message, updated_at')
+      .single();
+    if (error) throw error;
+    res.json({ data });
+  }),
+);
+
+app.get(
+  '/api/v1/embed/:slug/config',
+  asyncHandler(async (req, res) => {
+    const { data: pipeline, error: pipelineError } = await supabase
+      .from('pipelines')
+      .select('id, name, webhook_slug, redirect_url')
+      .eq('webhook_slug', req.params.slug)
+      .maybeSingle();
+    if (pipelineError) throw pipelineError;
+    if (!pipeline) return res.status(404).json({ message: 'Form khong ton tai.' });
+
+    const { data: form, error: formError } = await supabase
+      .from('pipeline_forms')
+      .select('fields, title, submit_label, success_message')
+      .eq('pipeline_id', pipeline.id)
+      .maybeSingle();
+    if (formError) throw formError;
+    res.json({
+      data: {
+        pipeline_id: pipeline.id,
+        pipeline_name: pipeline.name,
+        webhook_slug: pipeline.webhook_slug,
+        redirect_url: pipeline.redirect_url,
+        fields: sanitizeFormFields(form?.fields),
+        title: form?.title || 'Đăng ký tư vấn',
+        submit_label: form?.submit_label || 'Gửi thông tin',
+        success_message: form?.success_message || 'Cảm ơn anh/chị! Thông tin đã được gửi thành công.',
+      },
+    });
   }),
 );
 
