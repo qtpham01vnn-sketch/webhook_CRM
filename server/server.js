@@ -372,13 +372,32 @@ app.get(
     if (!isUuid(req.params.id)) {
       return res.status(400).json({ message: 'Pipeline ID khong hop le.' });
     }
-    const { data, error } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('pipeline_shares')
       .select('id, pipeline_id, token, enabled, visible_columns, column_order, updated_at')
       .eq('pipeline_id', req.params.id)
       .maybeSingle();
-    if (error) throw error;
-    res.json({ data: data ? { ...data, share_url: `${CLIENT_URL.replace(/\/$/, '')}/#/share/${data.token}` } : null });
+    if (existingError) throw existingError;
+
+    let data = existing;
+    if (!data) {
+      const { data: created, error: createError } = await supabase
+        .from('pipeline_shares')
+        .insert({
+          pipeline_id: req.params.id,
+          token: crypto.randomUUID(),
+          password_hash: '',
+          enabled: false,
+          visible_columns: SHARE_COLUMNS,
+          column_order: SHARE_COLUMNS,
+        })
+        .select('id, pipeline_id, token, enabled, visible_columns, column_order, updated_at')
+        .single();
+      if (createError) throw createError;
+      data = created;
+    }
+
+    res.json({ data: { ...data, share_url: `${CLIENT_URL.replace(/\/$/, '')}/#/share/${data.token}` } });
   }),
 );
 
