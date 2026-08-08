@@ -24,7 +24,7 @@ export default function Modal({ open, title, description, children, onClose, wid
     >
       <section
         aria-modal="true"
-        className={`w-full ${wide ? 'max-w-5xl' : 'max-w-lg'} rounded-2xl bg-white p-6 shadow-2xl`}
+        className={`w-full ${wide ? 'max-w-5xl' : 'max-w-lg'} max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white p-6 shadow-2xl`}
         role="dialog"
       >
         <div className="flex items-start justify-between gap-4">
