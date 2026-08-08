@@ -224,6 +224,7 @@ function ColumnEditor({ order, visible, onChange }) {
 
 function ShareForm({ busy, copied, error, initialShare, onCancel, onCopy, onSubmit, shareUrl }) {
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [enabled, setEnabled] = useState(initialShare?.enabled !== false);
   const [columns, setColumns] = useState({
     order: initialShare?.column_order?.length ? initialShare.column_order : DEFAULT_COLUMN_ORDER,
@@ -266,27 +267,46 @@ function ShareForm({ busy, copied, error, initialShare, onCancel, onCopy, onSubm
 
       <label className="block">
         <span className="mb-2 block text-sm font-medium text-slate-700">Mật khẩu chia sẻ (tối thiểu 4 ký tự)</span>
-        <input
-          className="w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10"
-          minLength={4}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder={initialShare ? 'Nhập mật khẩu mới để cập nhật' : 'Đặt mật khẩu cho người nhận'}
-          required
-          type="password"
-          value={password}
-        />
-      </label>
-      {shareUrl && (
-        <div className="rounded-xl border bg-slate-50 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Link chia sẻ</p>
-          <div className="flex gap-2">
-            <input className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-xs text-slate-700" readOnly value={shareUrl} />
-            <button className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100" onClick={onCopy} type="button">
-              {copied ? <Check size={14} /> : <Copy size={14} />}{copied ? 'Đã copy' : 'Copy'}
-            </button>
-          </div>
+        <div className="relative">
+          <input
+            className="w-full rounded-xl border bg-white px-3.5 py-2.5 pr-11 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10"
+            minLength={4}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder={initialShare ? 'Nhập mật khẩu mới để cập nhật' : 'Đặt mật khẩu cho người nhận'}
+            required
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+          />
+          <button
+            aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            onClick={() => setShowPassword((current) => !current)}
+            type="button"
+          >
+            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
         </div>
-      )}
+      </label>
+      <div className="rounded-xl border bg-slate-50 p-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Liên kết có thể chia sẻ</p>
+        <div className="flex gap-2">
+          <input
+            className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-xs text-slate-700"
+            placeholder="Bấm Lưu chia sẻ để tạo link"
+            readOnly
+            value={shareUrl}
+          />
+          <button
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!shareUrl}
+            onClick={onCopy}
+            type="button"
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}{copied ? 'Đã copy' : 'Copy'}
+          </button>
+        </div>
+        {!shareUrl && <p className="mt-2 text-xs text-muted">Link sẽ xuất hiện ngay sau khi lưu mật khẩu và quyền xem.</p>}
+      </div>
       {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
       <div className="flex justify-end gap-3 pt-1">
         <button className="rounded-xl border px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={onCancel} type="button">Hủy</button>
