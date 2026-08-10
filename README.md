@@ -190,8 +190,10 @@ Không lưu `META_APP_SECRET`, Page Access Token hoặc API key trong GitHub. C�
 
 Trong CRM, chọn Pipeline dành cho Gạch Phương Nam, mở menu dấu ba chấm và chọn **Dữ liệu AI**. Màn hình này có hai khu vực:
 
-- **Tiêu chuẩn kỹ thuật:** lưu tên tiêu chuẩn, cơ quan ban hành, phiên bản, trang/điều khoản và nội dung đã kiểm chứng. Chỉ bản ghi có trạng thái `approved`, đang bật và còn hiệu lực mới được đưa cho AI.
-- **Sản phẩm & bảng giá:** lưu danh mục sản phẩm và bảng giá có phiên bản, ngày hiệu lực, khu vực, nhóm khách hàng và đơn vị tính. Có thể nhập một sản phẩm hoặc dán nhiều dòng theo mẫu `Mã SP ; Tên SP ; Kích thước ; Đơn giá ; Đơn vị ; Nhóm sản phẩm`.
+- **Tiêu chuẩn kỹ thuật:** lưu tên tiêu chuẩn, cơ quan ban hành, phiên bản, trang/điều khoản và nội dung đã kiểm chứng. Có thể tải tệp `.docx`; hệ thống tự nhận diện và tách các phần `TC.09.01`, `TC.09.02`, `TC.09.03`... để xem trước rồi nhập hàng loạt.
+- **Sản phẩm & bảng giá:** lưu danh mục sản phẩm và bảng giá có phiên bản, ngày hiệu lực, khu vực, nhóm khách hàng và đơn vị tính. Có thể tải tệp `.xlsx`; hệ thống tự dò hàng tiêu đề tiếng Việt/Anh, xem trước các dòng hợp lệ và báo các dòng bị bỏ qua.
+
+Tệp Word/Excel được đọc ngay trên trình duyệt; hệ thống chỉ gửi dữ liệu có cấu trúc đã chọn lên API, không tải nguyên tệp Office lên server. Dữ liệu nhập hàng loạt mặc định là **Bản nháp** để kiểm tra trước. Chỉ bản ghi có trạng thái `approved`, đang bật và còn hiệu lực mới được đưa cho AI. Giới hạn mỗi lần nhập là 250 tài liệu kỹ thuật hoặc 2.000 dòng sản phẩm/bảng giá.
 
 Giá bán được truy vấn trực tiếp từ `product_prices`; mô hình AI không được tự tạo giá. Câu trả lời về tiêu chuẩn phải có mã nguồn dạng `[SRC:<uuid>]`. Nếu mô hình trả lời không có nguồn hợp lệ, backend loại bỏ câu trả lời đó và gửi thông báo an toàn thay thế.
 

@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
+  AlertTriangle,
   BookOpenCheck,
   CheckCircle2,
   Database,
+  FileText,
   FileSpreadsheet,
   LoaderCircle,
   PackageCheck,
   Save,
   ShieldCheck,
+  TableProperties,
+  UploadCloud,
+  X,
 } from 'lucide-react';
 import { crmApi } from '../lib/api.js';
+import { parseExcelFile, parseWordFile } from '../lib/officeImport.js';
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -89,6 +95,119 @@ function SummaryCard({ icon: Icon, label, value }) {
   );
 }
 
+function OfficeImportPanel({
+  mode,
+  preview,
+  parsing,
+  saving,
+  approvalStatus,
+  onApprovalChange,
+  onFile,
+  onToggle,
+  onImport,
+  onClear,
+}) {
+  const isWord = mode === 'knowledge';
+  const selectedCount = preview?.items.filter((item) => item.selected).length || 0;
+  return (
+    <div className="rounded-2xl border border-cyan-400/30 bg-cyan-400/5 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-cyan-400/10 p-2.5 text-cyan-400">
+            {isWord ? <FileText size={22} /> : <TableProperties size={22} />}
+          </div>
+          <div>
+            <p className="font-semibold text-ink">
+              {isWord ? 'Upload Word — tự tách TC.09.xx' : 'Upload Excel — nhập sản phẩm & bảng giá'}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              {isWord
+                ? 'Chọn file .docx. Hệ thống nhận TC.09.01, TC.09.02… và cho anh kiểm tra từng mục trước khi lưu.'
+                : 'Chọn file .xlsx. Hệ thống tự dò các cột mã sản phẩm, tên, kích thước, đơn giá và điều kiện giá.'}
+            </p>
+          </div>
+        </div>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+          {parsing ? <LoaderCircle className="animate-spin" size={17} /> : <UploadCloud size={17} />}
+          {parsing ? 'Đang đọc file…' : `Chọn file ${isWord ? 'Word' : 'Excel'}`}
+          <input
+            accept={isWord ? '.docx' : '.xlsx'}
+            className="sr-only"
+            disabled={parsing || saving}
+            onChange={onFile}
+            type="file"
+          />
+        </label>
+      </div>
+
+      {preview && (
+        <div className="mt-4 space-y-4 border-t border-cyan-400/20 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-ink">{preview.file_name}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Đã đọc {preview.items.length} mục · Đang chọn {selectedCount} mục
+              </p>
+            </div>
+            <button className="inline-flex items-center gap-1.5 text-sm font-medium text-rose-300" onClick={onClear} type="button">
+              <X size={15} /> Bỏ file
+            </button>
+          </div>
+
+          {preview.warnings.length > 0 && (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">
+              <p className="flex items-center gap-2 font-semibold"><AlertTriangle size={16} /> Cần kiểm tra</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5">
+                {preview.warnings.slice(0, 8).map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+              </ul>
+            </div>
+          )}
+
+          <div className="scrollbar-subtle max-h-72 space-y-2 overflow-y-auto pr-1">
+            {preview.items.map((item, index) => (
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-3" key={`${item.import_key || item.product_code}-${index}`}>
+                <input checked={item.selected} className="mt-1 h-4 w-4 accent-cyan-500" onChange={() => onToggle(index)} type="checkbox" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-slate-800">
+                    {isWord ? item.title : `${item.product_code} — ${item.name}`}
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    {isWord
+                      ? item.content.slice(0, 180)
+                      : `${item.dimensions || 'Chưa có kích thước'} · ${Number(item.unit_price).toLocaleString('vi-VN')} VND/${item.unit}`}
+                  </span>
+                </span>
+              </label>
+            ))}
+            {!preview.items.length && <p className="rounded-xl border border-dashed p-5 text-center text-sm text-slate-500">Không tìm thấy dữ liệu hợp lệ trong file.</p>}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <Field
+              label="Trạng thái sau khi nhập"
+              hint="Nên chọn Bản nháp ở lần đầu. Chỉ chuyển sang Đã duyệt sau khi anh kiểm tra nội dung và giá."
+            >
+              <select className={inputClass()} onChange={onApprovalChange} value={approvalStatus}>
+                <option value="draft">Bản nháp — AI chưa được dùng</option>
+                <option value="approved">Đã kiểm tra — AI được dùng</option>
+              </select>
+            </Field>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!selectedCount || saving}
+              onClick={onImport}
+              type="button"
+            >
+              {saving ? <LoaderCircle className="animate-spin" size={17} /> : <UploadCloud size={17} />}
+              Nhập {selectedCount} mục
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GroundedDataManager({ pipeline }) {
   const [tab, setTab] = useState('standards');
   const [summary, setSummary] = useState({ knowledge_documents: 0, product_catalog: 0, price_lists: 0 });
@@ -98,6 +217,9 @@ export default function GroundedDataManager({ pipeline }) {
   const [pricing, setPricing] = useState(emptyPricing);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [parsingFile, setParsingFile] = useState(false);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importApproval, setImportApproval] = useState('draft');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -138,6 +260,79 @@ export default function GroundedDataManager({ pipeline }) {
   function updatePricing(event) {
     const { name, value } = event.target;
     setPricing((current) => ({ ...current, [name]: value }));
+  }
+
+  async function handleOfficeFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setParsingFile(true);
+    setError('');
+    setNotice('');
+    try {
+      const preview = tab === 'standards' ? await parseWordFile(file) : await parseExcelFile(file);
+      setImportPreview(preview);
+      setImportApproval('draft');
+    } catch (fileError) {
+      setImportPreview(null);
+      setError(fileError.message || 'Không thể đọc file đã chọn.');
+    } finally {
+      setParsingFile(false);
+    }
+  }
+
+  function toggleImportItem(index) {
+    setImportPreview((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, selected: !item.selected } : item,
+      ),
+    }));
+  }
+
+  async function importOfficeData() {
+    const selected = importPreview?.items.filter((item) => item.selected) || [];
+    if (!selected.length) return;
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      if (importPreview.kind === 'knowledge') {
+        const response = await crmApi.importKnowledgeDocuments({
+          pipeline_id: pipeline.id,
+          file_name: importPreview.file_name,
+          effective_from: standard.effective_from || null,
+          approval_status: importApproval,
+          documents: selected.map(({ selected: _selected, ...document }) => ({
+            ...document,
+            source_label: importPreview.file_name,
+            metadata: { file_hash: importPreview.file_hash },
+          })),
+        });
+        setNotice(`Đã nhập ${response.imported} mục tiêu chuẩn${response.skipped ? `, bỏ qua ${response.skipped} mục đã nhập trước đó` : ''}.`);
+      } else {
+        const response = await crmApi.importPriceWorkbook({
+          pipeline_id: pipeline.id,
+          file_name: importPreview.file_name,
+          price_list: {
+            name: pricing.list_name,
+            version: pricing.version,
+            effective_from: pricing.effective_from,
+            effective_to: pricing.effective_to || null,
+            approval_status: importApproval,
+            notes: pricing.notes,
+          },
+          products: selected.map(({ selected: _selected, ...product }) => product),
+        });
+        setNotice(`Đã nhập ${response.imported_products} sản phẩm và ${response.imported_prices} mức giá từ Excel.`);
+      }
+      setImportPreview(null);
+      await loadData();
+    } catch (importError) {
+      setError(importError.message || 'Không thể nhập dữ liệu từ file.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function saveStandard(event) {
@@ -254,9 +449,22 @@ export default function GroundedDataManager({ pipeline }) {
       </div>
 
       <div className="flex gap-2 rounded-xl border bg-slate-50 p-1.5">
-        <button className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${tab === 'standards' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`} onClick={() => setTab('standards')} type="button"><BookOpenCheck className="mr-2 inline" size={16} />Tiêu chuẩn kỹ thuật</button>
-        <button className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${tab === 'pricing' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`} onClick={() => setTab('pricing')} type="button"><FileSpreadsheet className="mr-2 inline" size={16} />Sản phẩm & bảng giá</button>
+        <button className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${tab === 'standards' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`} onClick={() => { setTab('standards'); setImportPreview(null); }} type="button"><BookOpenCheck className="mr-2 inline" size={16} />Tiêu chuẩn kỹ thuật</button>
+        <button className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${tab === 'pricing' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`} onClick={() => { setTab('pricing'); setImportPreview(null); }} type="button"><FileSpreadsheet className="mr-2 inline" size={16} />Sản phẩm & bảng giá</button>
       </div>
+
+      <OfficeImportPanel
+        approvalStatus={importApproval}
+        mode={tab === 'standards' ? 'knowledge' : 'pricing'}
+        onApprovalChange={(event) => setImportApproval(event.target.value)}
+        onClear={() => setImportPreview(null)}
+        onFile={handleOfficeFile}
+        onImport={importOfficeData}
+        onToggle={toggleImportItem}
+        parsing={parsingFile}
+        preview={importPreview}
+        saving={saving}
+      />
 
       {tab === 'standards' ? (
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
