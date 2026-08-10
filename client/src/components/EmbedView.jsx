@@ -32,6 +32,21 @@ export default function EmbedView({ slug }) {
     '--tpai-ink': '#102a43',
   }), []);
 
+  const fieldStyle = {
+    width: '100%',
+    padding: '11px 12px',
+    border: '1px solid #b8c9d6',
+    borderRadius: 9,
+    backgroundColor: '#ffffff',
+    color: '#08233b',
+    caretColor: 'var(--tpai-brand)',
+    font: 'inherit',
+    WebkitTextFillColor: '#08233b',
+    boxSizing: 'border-box',
+    outline: 'none',
+    boxShadow: '0 1px 2px rgba(8, 35, 59, 0.05)',
+  };
+
   async function submit(event) {
     event.preventDefault();
     setSubmitting(true);
@@ -69,6 +84,20 @@ export default function EmbedView({ slug }) {
 
   return (
     <div style={{ ...formStyle, maxWidth: 520, margin: '0 auto', padding: 24, border: '1px solid #d9e5ec', borderRadius: 16, background: '#fff', color: 'var(--tpai-ink)', fontFamily: 'Inter, Arial, sans-serif', boxSizing: 'border-box' }}>
+      <style>{`
+        .tpai-embed-field::placeholder { color: #6b7f91; opacity: 1; }
+        .tpai-embed-field:focus {
+          border-color: #0891b2 !important;
+          box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.16) !important;
+        }
+        .tpai-embed-field:-webkit-autofill,
+        .tpai-embed-field:-webkit-autofill:hover,
+        .tpai-embed-field:-webkit-autofill:focus {
+          -webkit-text-fill-color: #08233b !important;
+          box-shadow: 0 0 0 1000px #ffffff inset, 0 0 0 3px rgba(8, 145, 178, 0.16) !important;
+          transition: background-color 9999s ease-out 0s;
+        }
+      `}</style>
       <h2 style={{ margin: '0 0 18px', fontSize: 22, lineHeight: 1.25 }}>{config.title}</h2>
       <form onSubmit={submit}>
         <div style={{ display: 'grid', gap: 14 }}>
@@ -76,9 +105,9 @@ export default function EmbedView({ slug }) {
             <label key={field.key} style={{ display: 'grid', gap: 7, fontSize: 14, fontWeight: 600 }}>
               <span>{field.label}{field.required ? <em style={{ color: '#d92d20', fontStyle: 'normal' }}> *</em> : null}</span>
               {field.type === 'textarea' ? (
-                <textarea rows="4" required={field.required} value={values[field.key] || ''} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} style={{ width: '100%', resize: 'vertical', padding: '11px 12px', border: '1px solid #cbd8e0', borderRadius: 9, font: 'inherit', boxSizing: 'border-box' }} />
+                <textarea className="tpai-embed-field" rows="4" required={field.required} value={values[field.key] || ''} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} style={{ ...fieldStyle, resize: 'vertical' }} />
               ) : (
-                <input type={field.type} required={field.required} value={values[field.key] || ''} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} style={{ width: '100%', padding: '11px 12px', border: '1px solid #cbd8e0', borderRadius: 9, font: 'inherit', boxSizing: 'border-box' }} />
+                <input className="tpai-embed-field" type={field.type} required={field.required} value={values[field.key] || ''} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} style={fieldStyle} />
               )}
             </label>
           ))}
