@@ -23,6 +23,12 @@ function pipelineFilter(query, pipelineId) {
   return pipelineId ? query.eq('pipeline_id', pipelineId) : query.is('pipeline_id', null);
 }
 
+function chunks(items, size = 250) {
+  const result = [];
+  for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
+  return result;
+}
+
 export function createGroundedDataRouter({ supabase }) {
   const router = express.Router();
 
@@ -243,6 +249,176 @@ export function createGroundedDataRouter({ supabase }) {
         .select('*');
       if (error) throw error;
       res.status(201).json({ data: data || [] });
+    }),
+  );
+
+  router.post(
+    '/import/knowledge',
+    asyncHandler(async (req, res) => {
+      const pipelineId = requiredText(req.body.pipeline_id, 'pipeline_id', 80);
+      const documents = Array.isArray(req.body.documents) ? req.body.documents.slice(0, 250) : [];
+      if (!documents.length) {
+        return res.status(400).json({ message: 'documents phai la mang co du lieu.' });
+      }
+      const approvalStatus = text(req.body.approval_status, 30) === 'approved' ? 'approved' : 'draft';
+      const { data: existing, error: existingError } = await supabase
+        .from('knowledge_documents')
+        .select('metadata')
+        .eq('pipeline_id', pipelineId)
+        .limit(5000);
+      if (existingError) throw existingError;
+      const existingKeys = new Set(
+        (existing || []).map((item) => item.metadata?.import_key).filter(Boolean),
+      );
+      const now = new Date().toISOString();
+      const payload = documents
+        .map((document) => {
+          const importKey = text(document.import_key, 500);
+          return {
+            pipeline_id: pipelineId,
+            title: requiredText(document.title, 'title', 300),
+            document_type: 'technical_standard',
+            source_label: text(document.source_label || req.body.file_name, 300),
+            version: text(document.version, 100),
+            page_reference: text(document.page_reference, 100),
+            effective_from: document.effective_from || req.body.effective_from || null,
+            effective_to: document.effective_to || null,
+            approval_status: approvalStatus,
+            content: requiredText(document.content, 'content', 200_000),
+            metadata: {
+              ...(document.metadata && typeof document.metadata === 'object' ? document.metadata : {}),
+              import_key: importKey,
+              original_file: text(req.body.file_name, 300),
+              imported_at: now,
+              import_method: 'office_upload',
+            },
+            enabled: true,
+            updated_at: now,
+          };
+        })
+        .filter((document) => !document.metadata.import_key || !existingKeys.has(document.metadata.import_key));
+
+      const imported = [];
+      for (const group of chunks(payload, 100)) {
+        const { data, error } = await supabase.from('knowledge_documents').insert(group).select('*');
+        if (error) throw error;
+        imported.push(...(data || []));
+      }
+      res.status(201).json({
+        data: imported,
+        imported: imported.length,
+        skipped: documents.length - payload.length,
+        approval_status: approvalStatus,
+      });
+    }),
+  );
+
+  router.post(
+    '/import/prices',
+    asyncHandler(async (req, res) => {
+      const pipelineId = requiredText(req.body.pipeline_id, 'pipeline_id', 80);
+      const products = Array.isArray(req.body.products) ? req.body.products.slice(0, 2000) : [];
+      if (!products.length) {
+        return res.status(400).json({ message: 'products phai la mang co du lieu.' });
+      }
+      const listInput = req.body.price_list || {};
+      const priceListPayload = {
+        pipeline_id: pipelineId,
+        name: requiredText(listInput.name, 'price_list.name', 300),
+        version: requiredText(listInput.version, 'price_list.version', 100),
+        effective_from: listInput.effective_from || new Date().toISOString().slice(0, 10),
+        effective_to: listInput.effective_to || null,
+        approval_status: text(listInput.approval_status, 30) === 'approved' ? 'approved' : 'draft',
+        notes: text(listInput.notes, 2000),
+        updated_at: new Date().toISOString(),
+      };
+      const { data: priceList, error: priceListError } = await supabase
+        .from('price_lists')
+        .upsert(priceListPayload, { onConflict: 'pipeline_id,name,version' })
+        .select('*')
+        .single();
+      if (priceListError) throw priceListError;
+
+      const productPayload = products.map((product) => ({
+        pipeline_id: pipelineId,
+        product_code: requiredText(product.product_code, 'product_code', 100).toUpperCase(),
+        name: requiredText(product.name, 'name', 300),
+        category: text(product.category, 150),
+        dimensions: text(product.dimensions, 100),
+        color: text(product.color, 100),
+        unit: text(product.unit, 30) || 'm2',
+        specifications: {
+          ...(product.specifications && typeof product.specifications === 'object'
+            ? product.specifications
+            : {}),
+          imported_from: {
+            file_name: text(req.body.file_name, 300),
+            sheet_name: text(product.sheet_name, 150),
+            row_number: Number(product.row_number) || null,
+          },
+        },
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      }));
+      // Một mã sản phẩm có thể xuất hiện nhiều lần trong Excel khi có nhiều
+      // vùng/nhóm khách hàng. Chỉ upsert danh mục một lần cho mỗi mã để tránh
+      // PostgreSQL báo "ON CONFLICT ... cannot affect row a second time".
+      const uniqueProductPayload = [
+        ...new Map(productPayload.map((product) => [product.product_code, product])).values(),
+      ];
+      const storedProducts = [];
+      for (const group of chunks(uniqueProductPayload, 250)) {
+        const { data, error } = await supabase
+          .from('product_catalog')
+          .upsert(group, { onConflict: 'pipeline_id,product_code' })
+          .select('*');
+        if (error) throw error;
+        storedProducts.push(...(data || []));
+      }
+      const productByCode = new Map(storedProducts.map((product) => [product.product_code, product]));
+      const pricePayload = products.map((product) => {
+        const unitPrice = Number(product.unit_price);
+        const minimumQuantity = Number(product.minimum_quantity || 0);
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+          const error = new Error(`Don gia cua ma ${product.product_code || '?'} khong hop le.`);
+          error.status = 400;
+          throw error;
+        }
+        return {
+          price_list_id: priceList.id,
+          product_id: productByCode.get(String(product.product_code).toUpperCase())?.id,
+          region: text(product.region, 100) || 'all',
+          customer_group: text(product.customer_group, 100) || 'all',
+          minimum_quantity: Number.isFinite(minimumQuantity) && minimumQuantity >= 0 ? minimumQuantity : 0,
+          unit_price: unitPrice,
+          currency: text(product.currency, 10) || 'VND',
+          unit: text(product.unit, 30) || 'm2',
+          notes: text(product.notes || listInput.notes, 1000),
+          updated_at: new Date().toISOString(),
+        };
+      });
+      if (pricePayload.some((row) => !row.product_id)) {
+        const error = new Error('Khong the lien ket mot so dong gia voi san pham.');
+        error.status = 400;
+        throw error;
+      }
+      const storedPrices = [];
+      for (const group of chunks(pricePayload, 500)) {
+        const { data, error } = await supabase
+          .from('product_prices')
+          .upsert(group, {
+            onConflict: 'price_list_id,product_id,region,customer_group,minimum_quantity',
+          })
+          .select('*');
+        if (error) throw error;
+        storedPrices.push(...(data || []));
+      }
+      res.status(201).json({
+        data: { price_list: priceList },
+        imported_products: storedProducts.length,
+        imported_prices: storedPrices.length,
+        approval_status: priceList.approval_status,
+      });
     }),
   );
 

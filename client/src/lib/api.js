@@ -120,4 +120,14 @@ export const crmApi = {
       method: 'POST',
       body: JSON.stringify({ prices }),
     }),
+  importKnowledgeDocuments: (input) =>
+    request('/grounded/import/knowledge', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  importPriceWorkbook: (input) =>
+    request('/grounded/import/prices', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };
