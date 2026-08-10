@@ -11,6 +11,9 @@ begin
     'pipeline_shares',
     'pipeline_forms',
     'knowledge_documents',
+    'product_catalog',
+    'price_lists',
+    'product_prices',
     'messenger_conversations',
     'messenger_messages'
   ]

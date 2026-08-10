@@ -185,3 +185,24 @@ values (
 ```
 
 Không lưu `META_APP_SECRET`, Page Access Token hoặc API key trong GitHub. Các giá trị này chỉ được đặt trong Environment Variables của backend.
+
+### Kho dữ liệu AI của Gạch Phương Nam
+
+Trong CRM, chọn Pipeline dành cho Gạch Phương Nam, mở menu dấu ba chấm và chọn **Dữ liệu AI**. Màn hình này có hai khu vực:
+
+- **Tiêu chuẩn kỹ thuật:** lưu tên tiêu chuẩn, cơ quan ban hành, phiên bản, trang/điều khoản và nội dung đã kiểm chứng. Chỉ bản ghi có trạng thái `approved`, đang bật và còn hiệu lực mới được đưa cho AI.
+- **Sản phẩm & bảng giá:** lưu danh mục sản phẩm và bảng giá có phiên bản, ngày hiệu lực, khu vực, nhóm khách hàng và đơn vị tính. Có thể nhập một sản phẩm hoặc dán nhiều dòng theo mẫu `Mã SP ; Tên SP ; Kích thước ; Đơn giá ; Đơn vị ; Nhóm sản phẩm`.
+
+Giá bán được truy vấn trực tiếp từ `product_prices`; mô hình AI không được tự tạo giá. Câu trả lời về tiêu chuẩn phải có mã nguồn dạng `[SRC:<uuid>]`. Nếu mô hình trả lời không có nguồn hợp lệ, backend loại bỏ câu trả lời đó và gửi thông báo an toàn thay thế.
+
+Tin nhắn Messenger được lưu vào `messenger_conversations` và `messenger_messages`. Khi đã thu được tối thiểu họ tên, số điện thoại và nhu cầu, hệ thống tạo hoặc cập nhật Lead trong Pipeline đã cấu hình bằng `META_PIPELINE_ID` hoặc `META_PIPELINE_SLUG`.
+
+Trước khi bật bot:
+
+1. Chạy lại `supabase/messenger.sql` và `supabase/security.sql` trong Supabase SQL Editor.
+2. Đặt `ADMIN_API_TOKEN` để bảo vệ màn hình quản trị dữ liệu AI.
+3. Nhập tiêu chuẩn và bảng giá thật, kiểm tra trạng thái **Đã duyệt**.
+4. Cấu hình các biến `META_*` và AI provider trên backend Vercel.
+5. Giữ `MESSENGER_ENABLED=false` khi kiểm tra webhook; chỉ chuyển thành `true` sau khi thử nghiệm trên tài khoản Meta có quyền quản trị Trang.
+
+Không thể bảo đảm tuyệt đối một mô hình ngôn ngữ không bao giờ sinh nội dung sai. Thiết kế này giảm rủi ro bằng dữ liệu đã duyệt, giá có cấu trúc, trích dẫn bắt buộc và chặn câu trả lời không có nguồn; các tư vấn quan trọng vẫn nên được nhân viên xác nhận.

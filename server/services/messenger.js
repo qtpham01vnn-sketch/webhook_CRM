@@ -41,6 +41,31 @@ export function extractMessengerTextEvents(payload) {
   );
 }
 
+export async function getMessengerProfile(senderPsid) {
+  const accessToken = process.env.META_PAGE_ACCESS_TOKEN;
+  const graphVersion = process.env.META_GRAPH_API_VERSION || 'v23.0';
+  if (!accessToken || !senderPsid) return null;
+
+  const url = new URL(
+    `https://graph.facebook.com/${encodeURIComponent(graphVersion)}/${encodeURIComponent(senderPsid)}`,
+  );
+  url.searchParams.set('fields', 'name,first_name,last_name');
+  url.searchParams.set('access_token', accessToken);
+
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    return {
+      full_name:
+        String(payload.name || `${payload.first_name || ''} ${payload.last_name || ''}`).trim() ||
+        null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function sendMessengerText({ pageId, recipientId, text }) {
   const accessToken = process.env.META_PAGE_ACCESS_TOKEN;
   const graphVersion = process.env.META_GRAPH_API_VERSION || 'v23.0';

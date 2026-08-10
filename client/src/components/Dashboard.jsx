@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bell,
+  BrainCircuit,
   Check,
   ChevronDown,
   Clipboard,
@@ -26,6 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { crmApi } from '../lib/api.js';
+import GroundedDataManager from './GroundedDataManager.jsx';
 import Modal from './Modal.jsx';
 
 const badgeColors = [
@@ -489,6 +491,7 @@ export default function Dashboard() {
   const [shareOpen, setShareOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [groundedDataOpen, setGroundedDataOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -925,6 +928,9 @@ export default function Dashboard() {
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { openFormBuilder(); setMenuOpen(false); }} type="button">
                     <Code2 size={16} /> Nhúng Form
                   </button>
+                  <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={() => { setGroundedDataOpen(true); setMenuOpen(false); }} type="button">
+                    <BrainCircuit size={16} /> Dữ liệu AI
+                  </button>
                   <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-rose-300 hover:bg-rose-500/10" disabled={deleting} onClick={deletePipeline} type="button">
                     <Trash2 size={16} /> {deleting ? 'Đang xóa...' : 'Xóa Pipeline'}
                   </button>
@@ -1100,6 +1106,16 @@ export default function Dashboard() {
           onSubmit={exportCsv}
         />
         {exportError && <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{exportError}</p>}
+      </Modal>
+
+      <Modal
+        description="Quản lý nguồn tiêu chuẩn kỹ thuật, danh mục sản phẩm và bảng giá đã duyệt để chatbot trả lời đúng dữ liệu Phương Nam."
+        onClose={() => setGroundedDataOpen(false)}
+        open={groundedDataOpen}
+        title="Kho kiến thức & Bảng giá AI"
+        wide
+      >
+        {selectedPipeline && <GroundedDataManager pipeline={selectedPipeline} />}
       </Modal>
 
       <Modal

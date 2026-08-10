@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { createAdminAuthMiddleware } from './middleware/adminAuth.js';
+import { createGroundedDataRouter } from './routes/groundedData.js';
 import { createMetaWebhookRouter } from './routes/metaWebhook.js';
 
 dotenv.config();
@@ -254,6 +255,7 @@ app.get('/api/health', (_req, res) => {
 // Khi ADMIN_API_TOKEN duoc dat, chi cac endpoint public can thiet moi bo qua xac thuc.
 // Neu chua dat, hanh vi cu duoc giu nguyen de deploy code khong lam gian doan CRM.
 app.use('/api/v1', createAdminAuthMiddleware());
+app.use('/api/v1/grounded', createGroundedDataRouter({ supabase }));
 
 app.get(
   '/api/v1/pipelines',
@@ -759,8 +761,9 @@ app.use((error, _req, res, _next) => {
     return res.status(400).json({ message: 'JSON payload khong hop le.' });
   }
 
-  return res.status(500).json({
-    message: 'Da co loi may chu. Vui long thu lai.',
+  const status = Number(error.status) || 500;
+  return res.status(status).json({
+    message: status >= 500 ? 'Da co loi may chu. Vui long thu lai.' : error.message,
     ...(process.env.NODE_ENV === 'development' && { detail: error.message }),
   });
 });

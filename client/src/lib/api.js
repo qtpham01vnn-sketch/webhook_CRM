@@ -96,4 +96,28 @@ export const crmApi = {
     if (filters.columns?.length) params.set('columns', filters.columns.join(','));
     return downloadRequest(`/export/leads.csv?${params}`);
   },
+  getGroundedSummary: (pipelineId) =>
+    request(`/grounded/summary?${new URLSearchParams({ pipeline_id: pipelineId })}`),
+  getKnowledgeDocuments: (pipelineId) =>
+    request(`/grounded/knowledge?${new URLSearchParams({ pipeline_id: pipelineId })}`),
+  createKnowledgeDocument: (input) =>
+    request('/grounded/knowledge', { method: 'POST', body: JSON.stringify(input) }),
+  updateKnowledgeDocument: (documentId, input) =>
+    request(`/grounded/knowledge/${documentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  getProducts: (pipelineId) =>
+    request(`/grounded/products?${new URLSearchParams({ pipeline_id: pipelineId })}`),
+  createProduct: (input) =>
+    request('/grounded/products', { method: 'POST', body: JSON.stringify(input) }),
+  getPriceLists: (pipelineId) =>
+    request(`/grounded/price-lists?${new URLSearchParams({ pipeline_id: pipelineId })}`),
+  createPriceList: (input) =>
+    request('/grounded/price-lists', { method: 'POST', body: JSON.stringify(input) }),
+  addPriceRows: (priceListId, prices) =>
+    request(`/grounded/price-lists/${priceListId}/prices`, {
+      method: 'POST',
+      body: JSON.stringify({ prices }),
+    }),
 };
