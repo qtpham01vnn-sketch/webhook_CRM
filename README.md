@@ -33,6 +33,10 @@ webhook/
 
 Để bật sửa/xóa Pipeline và link chia sẻ có mật khẩu, chạy thêm toàn bộ [`supabase/sharing.sql`](./supabase/sharing.sql) sau `schema.sql`. Để lưu cấu hình Form nhúng, chạy thêm [`supabase/embed.sql`](./supabase/embed.sql).
 
+Để thử nghiệm chatbot Messenger + AI, chạy thêm [`supabase/messenger.sql`](./supabase/messenger.sql). Migration này chỉ tạo bảng mới, không sửa hoặc xóa dữ liệu CRM hiện có.
+
+Sau khi đã chạy các migration cần thiết, chạy [`supabase/security.sql`](./supabase/security.sql) để bật RLS, thu hồi quyền truy cập trực tiếp của `anon`/`authenticated` và giữ quyền cho backend `service_role`.
+
 `service_role key` bỏ qua RLS và có toàn quyền với database. Chỉ lưu khóa này ở server, tuyệt đối không đưa vào biến môi trường Vite hoặc mã frontend.
 
 ## 2. Cấu hình môi trường
@@ -45,6 +49,7 @@ CLIENT_URL=http://localhost:5173
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SHARE_TOKEN_SECRET=replace-with-a-long-random-secret
+ADMIN_API_TOKEN=replace-with-a-long-random-admin-token
 ```
 
 Tạo file `client/.env` từ `client/.env.example` nếu cần đổi cấu hình mặc định:
@@ -133,5 +138,50 @@ Webhook cũng nhận `application/x-www-form-urlencoded`. Backend tự nhận bi
 - Deploy `client/dist` lên Vercel, Netlify hoặc CDN; deploy `server` lên Render, Railway, Fly.io hoặc VPS.
 - Cấu hình reverse proxy để frontend gọi `/api`, hoặc đặt `VITE_API_URL` thành URL tuyệt đối của backend.
 - Giới hạn CORS bằng `CLIENT_URL`; nhiều origin được phân tách bằng dấu phẩy.
+- Đặt `ADMIN_API_TOKEN` trên backend để bảo vệ API quản trị. Dashboard sẽ hỏi mã này và chỉ giữ trong `sessionStorage` của tab hiện tại; không đặt mã quản trị trong biến `VITE_*`.
 - Không commit file `.env`; luân chuyển `service_role key` ngay nếu bị lộ.
 - Với traffic public lớn, nên bổ sung rate limit, CAPTCHA ở form nguồn và cơ chế chống lead trùng theo nhu cầu nghiệp vụ.
+
+## Chatbot Messenger + AI (tùy chọn)
+
+Phần Messenger được tách khỏi webhook lead hiện tại và mặc định tắt bằng `MESSENGER_ENABLED=false`. Callback URL dành cho Meta là:
+
+```text
+https://<API_DOMAIN>/api/v1/meta/webhook
+```
+
+Webhook này không thay thế Meta App. Để nhận/gửi tin nhắn Fanpage vẫn cần Meta App hoặc một nền tảng trung gian đã được Meta cấp quyền, cùng Page Access Token hợp lệ.
+
+Luồng xử lý:
+
+```text
+Messenger -> webhook Meta -> tìm đoạn tài liệu liên quan -> AI -> Meta Send API
+                                      |
+                                      +-> Supabase lưu hội thoại
+```
+
+### Cấu hình miễn phí
+
+1. Chạy `supabase/messenger.sql` trong Supabase SQL Editor.
+2. Thêm một hoặc nhiều tài liệu đã được duyệt vào bảng `knowledge_documents`. Bản đầu dùng tìm kiếm từ khóa, không cần dịch vụ embedding trả phí.
+3. Chọn AI:
+   - `AI_PROVIDER=ollama`: chạy miễn phí và riêng tư trên máy có Ollama.
+   - `AI_PROVIDER=gemini`: dùng hạn mức free tier của Gemini; không nên gửi dữ liệu khách hàng nhạy cảm vì điều khoản free tier có thể cho phép dùng nội dung để cải thiện sản phẩm.
+4. Cấu hình các biến `META_*` trong môi trường backend.
+5. Xác minh callback trên Meta khi `MESSENGER_ENABLED=false`; chỉ chuyển thành `true` sau khi database, AI và Page Access Token đã sẵn sàng.
+
+Bot chỉ trả lời khi tìm thấy tài liệu liên quan. Nếu không có nguồn phù hợp, bot yêu cầu thêm mã sản phẩm/tiêu chuẩn thay vì tự suy đoán.
+
+### Thêm tài liệu thử nghiệm
+
+```sql
+insert into public.knowledge_documents (pipeline_id, title, source_label, content)
+values (
+  null,
+  'Tiêu chuẩn thử nghiệm',
+  'TC.09 - trang 1',
+  'Dán phần nội dung đã kiểm tra của tài liệu vào đây.'
+);
+```
+
+Không lưu `META_APP_SECRET`, Page Access Token hoặc API key trong GitHub. Các giá trị này chỉ được đặt trong Environment Variables của backend.

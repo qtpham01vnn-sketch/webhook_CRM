@@ -4,6 +4,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { createAdminAuthMiddleware } from './middleware/adminAuth.js';
+import { createMetaWebhookRouter } from './routes/metaWebhook.js';
 
 dotenv.config();
 
@@ -32,7 +34,15 @@ const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
   .map((origin) => origin.trim());
 
 app.use(cors({ origin: allowedOrigins }));
-app.use(express.json({ limit: '1mb' }));
+app.use(
+  express.json({
+    limit: '1mb',
+    verify: (req, _res, buffer) => {
+      // Meta ky tren payload goc, vi vay can giu lai bytes truoc khi parse JSON.
+      req.rawBody = Buffer.from(buffer);
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 function asyncHandler(handler) {
@@ -240,6 +250,10 @@ function extractLead(payload) {
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'mini-saas-crm-api' });
 });
+
+// Khi ADMIN_API_TOKEN duoc dat, chi cac endpoint public can thiet moi bo qua xac thuc.
+// Neu chua dat, hanh vi cu duoc giu nguyen de deploy code khong lam gian doan CRM.
+app.use('/api/v1', createAdminAuthMiddleware());
 
 app.get(
   '/api/v1/pipelines',
@@ -730,6 +744,9 @@ app.post(
     });
   }),
 );
+
+// Route Messenger tach biet hoan toan voi webhook CRM hien tai.
+app.use('/api/v1/meta', createMetaWebhookRouter({ supabase }));
 
 app.use((_req, res) => {
   res.status(404).json({ message: 'API endpoint khong ton tai.' });

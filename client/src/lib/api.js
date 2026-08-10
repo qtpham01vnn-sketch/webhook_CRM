@@ -1,9 +1,37 @@
 const API_URL = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
+const ADMIN_TOKEN_KEY = 'tpai_crm_admin_token';
 
-async function downloadRequest(path) {
-  const response = await fetch(`${API_URL}${path}`);
+function getAdminToken() {
+  return window.sessionStorage.getItem(ADMIN_TOKEN_KEY) || '';
+}
+
+function requestAdminToken() {
+  const token = window.prompt('Nhập mã quản trị CRM:');
+  if (!token) return false;
+  window.sessionStorage.setItem(ADMIN_TOKEN_KEY, token.trim());
+  return true;
+}
+
+function withAdminHeader(headers = {}) {
+  const token = getAdminToken();
+  return {
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...headers,
+  };
+}
+
+async function downloadRequest(path, canPrompt = true) {
+  const response = await fetch(`${API_URL}${path}`, { headers: withAdminHeader() });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
+    if (
+      response.status === 401 &&
+      payload.code === 'ADMIN_AUTH_REQUIRED' &&
+      canPrompt &&
+      requestAdminToken()
+    ) {
+      return downloadRequest(path, false);
+    }
     throw new Error(payload.message || 'Khong the xuat file CSV.');
   }
   return {
@@ -12,17 +40,25 @@ async function downloadRequest(path) {
   };
 }
 
-async function request(path, options = {}) {
+async function request(path, options = {}, canPrompt = true) {
   const response = await fetch(`${API_URL}${path}`, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...withAdminHeader(options.headers),
     },
-    ...options,
   });
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (
+      response.status === 401 &&
+      payload.code === 'ADMIN_AUTH_REQUIRED' &&
+      canPrompt &&
+      requestAdminToken()
+    ) {
+      return request(path, options, false);
+    }
     throw new Error(payload.message || 'Khong the ket noi den may chu.');
   }
 
