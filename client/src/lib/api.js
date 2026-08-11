@@ -107,6 +107,11 @@ export const crmApi = {
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
+  updateKnowledgeSourceApproval: (input) =>
+    request('/grounded/knowledge-sources/approval', {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
   getProducts: (pipelineId) =>
     request(`/grounded/products?${new URLSearchParams({ pipeline_id: pipelineId })}`),
   createProduct: (input) =>

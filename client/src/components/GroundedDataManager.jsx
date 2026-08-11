@@ -236,6 +236,7 @@ export default function GroundedDataManager({ pipeline }) {
   const [parsingFile, setParsingFile] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
   const [importApproval, setImportApproval] = useState('draft');
+  const [updatingSource, setUpdatingSource] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -263,26 +264,32 @@ export default function GroundedDataManager({ pipeline }) {
     loadData();
   }, [loadData]);
 
-  const approvedDocuments = useMemo(
-    () => documents.filter((item) => item.enabled && item.approval_status === 'approved'),
-    [documents],
-  );
   const documentSources = useMemo(() => {
     const sources = new Map();
     documents.forEach((item) => {
       const key = item.metadata?.file_hash || item.source_label || item.id;
-      if (!sources.has(key)) sources.set(key, item);
+      if (!sources.has(key)) {
+        sources.set(key, {
+          key,
+          file_hash: item.metadata?.file_hash || '',
+          file_type: item.metadata?.file_type || item.metadata?.source_type || '',
+          source_label: item.source_label || item.title,
+          documents: [],
+        });
+      }
+      sources.get(key).documents.push(item);
     });
-    return [...sources.values()];
+    return [...sources.values()].map((source) => ({
+      ...source,
+      approved: source.documents.every(
+        (item) => item.enabled && item.approval_status === 'approved',
+      ),
+    }));
   }, [documents]);
-  const approvedSources = useMemo(() => {
-    const sources = new Map();
-    approvedDocuments.forEach((item) => {
-      const key = item.metadata?.file_hash || item.source_label || item.id;
-      if (!sources.has(key)) sources.set(key, item);
-    });
-    return [...sources.values()];
-  }, [approvedDocuments]);
+  const draftSources = useMemo(
+    () => documentSources.filter((source) => !source.approved),
+    [documentSources],
+  );
 
   function updateStandard(event) {
     const { name, value } = event.target;
@@ -397,6 +404,53 @@ export default function GroundedDataManager({ pipeline }) {
       setError(importError.message || 'Không thể nhập dữ liệu từ file.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function setSourceApproval(source, approvalStatus) {
+    return crmApi.updateKnowledgeSourceApproval({
+      pipeline_id: pipeline.id,
+      approval_status: approvalStatus,
+      file_hash: source.file_hash || undefined,
+      document_ids: source.file_hash ? undefined : source.documents.map((item) => item.id),
+    });
+  }
+
+  async function changeSourceApproval(source, approvalStatus) {
+    setUpdatingSource(source.key);
+    setError('');
+    setNotice('');
+    try {
+      const response = await setSourceApproval(source, approvalStatus);
+      setNotice(
+        approvalStatus === 'approved'
+          ? `Đã duyệt ${source.source_label}. AI được phép sử dụng ${response.updated} khối dữ liệu của file này.`
+          : `Đã chuyển ${source.source_label} về Bản nháp. AI sẽ ngừng sử dụng file này.`,
+      );
+      await loadData();
+    } catch (approvalError) {
+      setError(approvalError.message || 'Không thể cập nhật trạng thái file.');
+    } finally {
+      setUpdatingSource('');
+    }
+  }
+
+  async function approveAllSources() {
+    if (!draftSources.length) return;
+    setUpdatingSource('all');
+    setError('');
+    setNotice('');
+    try {
+      const responses = await Promise.all(
+        draftSources.map((source) => setSourceApproval(source, 'approved')),
+      );
+      const updated = responses.reduce((total, response) => total + (response.updated || 0), 0);
+      setNotice(`Đã duyệt ${draftSources.length} file với ${updated} khối dữ liệu. AI có thể tra cứu ngay.`);
+      await loadData();
+    } catch (approvalError) {
+      setError(approvalError.message || 'Không thể duyệt toàn bộ file.');
+    } finally {
+      setUpdatingSource('');
     }
   }
 
@@ -546,11 +600,48 @@ export default function GroundedDataManager({ pipeline }) {
             <button className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60" disabled={saving} type="submit">{saving ? <LoaderCircle className="animate-spin" size={17} /> : <Save size={17} />} Lưu nguồn tiêu chuẩn</button>
           </form>
           <div className="rounded-xl border bg-slate-50 p-4">
-            <div className="flex items-center justify-between"><p className="font-semibold text-ink">Nguồn đang được AI dùng</p><BadgeCheck className="text-emerald-400" size={19} /></div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-semibold text-ink">Các file đã tải</p>
+                <p className="mt-1 text-xs text-slate-500">Duyệt file để AI bắt đầu tra cứu.</p>
+              </div>
+              {draftSources.length > 0 && (
+                <button
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+                  disabled={Boolean(updatingSource)}
+                  onClick={approveAllSources}
+                  type="button"
+                >
+                  {updatingSource === 'all' ? <LoaderCircle className="animate-spin" size={14} /> : <BadgeCheck size={14} />}
+                  Duyệt tất cả ({draftSources.length})
+                </button>
+              )}
+            </div>
             <div className="scrollbar-subtle mt-3 max-h-[430px] space-y-2 overflow-y-auto pr-1">
-              {approvedSources.length ? approvedSources.map((item) => (
-                <div className="rounded-xl border bg-white p-3" key={item.id}><p className="text-sm font-semibold text-slate-800">{item.source_label || item.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">Đã duyệt · AI được tra cứu toàn bộ nội dung đã lập chỉ mục</p></div>
-              )) : <p className="rounded-xl border border-dashed p-5 text-center text-sm text-slate-500">Chưa có nguồn nào đã duyệt.</p>}
+              {documentSources.length ? documentSources.map((source) => (
+                <div className="rounded-xl border bg-white p-3" key={source.key}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-800">{source.source_label}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        {[source.file_type?.toUpperCase(), `${source.documents.length} khối dữ liệu`].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${source.approved ? 'bg-emerald-400/15 text-emerald-500' : 'bg-amber-400/15 text-amber-600'}`}>
+                      {source.approved ? 'AI đang dùng' : 'Bản nháp'}
+                    </span>
+                  </div>
+                  <button
+                    className={`mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 ${source.approved ? 'bg-slate-500 hover:bg-slate-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                    disabled={Boolean(updatingSource)}
+                    onClick={() => changeSourceApproval(source, source.approved ? 'draft' : 'approved')}
+                    type="button"
+                  >
+                    {updatingSource === source.key ? <LoaderCircle className="animate-spin" size={14} /> : source.approved ? <X size={14} /> : <BadgeCheck size={14} />}
+                    {source.approved ? 'Tạm ngưng AI dùng file' : 'Duyệt cho AI'}
+                  </button>
+                </div>
+              )) : <p className="rounded-xl border border-dashed p-5 text-center text-sm text-slate-500">Chưa tải file tiêu chuẩn nào.</p>}
             </div>
           </div>
         </div>
