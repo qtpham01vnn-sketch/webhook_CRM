@@ -57,7 +57,7 @@ export function createGroundedDataRouter({ supabase }) {
         .from('knowledge_documents')
         .select('*')
         .order('updated_at', { ascending: false })
-        .limit(500);
+        .limit(1000);
       query = pipelineFilter(query, pipelineId);
       const { data, error } = await query;
       if (error) throw error;

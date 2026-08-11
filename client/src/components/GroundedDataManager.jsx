@@ -118,20 +118,20 @@ function OfficeImportPanel({
           </div>
           <div>
             <p className="font-semibold text-ink">
-              {isKnowledge ? 'Upload Word/PDF — tự trích xuất theo mục và trang' : 'Upload Excel — nhập sản phẩm & bảng giá'}
+              {isKnowledge ? 'Tải nguyên tài liệu Word, Excel hoặc PDF cho AI' : 'Upload Excel — nhập sản phẩm & bảng giá'}
             </p>
             <p className="mt-1 text-sm leading-6 text-slate-600">
               {isKnowledge
-                ? 'Chọn .docx hoặc PDF có lớp văn bản. Word được tách theo TC.09.xx; PDF được tách theo từng trang để giữ nguồn trích dẫn.'
+                ? 'Chọn một file tiêu chuẩn. Hệ thống đọc toàn bộ chữ và bảng, tự lập chỉ mục tìm kiếm để AI tra đúng nội dung và số liệu trong file.'
                 : 'Chọn file .xlsx. Hệ thống tự dò các cột mã sản phẩm, tên, kích thước, đơn giá và điều kiện giá.'}
             </p>
           </div>
         </div>
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
           {parsing ? <LoaderCircle className="animate-spin" size={17} /> : <UploadCloud size={17} />}
-          {parsing ? 'Đang đọc file…' : `Chọn file ${isKnowledge ? 'Word/PDF' : 'Excel'}`}
+          {parsing ? 'Đang đọc toàn bộ file…' : `Chọn file ${isKnowledge ? 'Word/Excel/PDF' : 'Excel bảng giá'}`}
           <input
-            accept={isKnowledge ? '.docx,.pdf' : '.xlsx'}
+            accept={isKnowledge ? '.docx,.xlsx,.pdf' : '.xlsx'}
             className="sr-only"
             disabled={parsing || saving}
             onChange={onFile}
@@ -146,7 +146,9 @@ function OfficeImportPanel({
             <div>
               <p className="text-sm font-semibold text-ink">{preview.file_name}</p>
               <p className="mt-1 text-xs text-slate-500">
-                Đã đọc {preview.items.length} mục · Đang chọn {selectedCount} mục
+                {isKnowledge
+                  ? `Đã đọc toàn bộ file và tạo ${preview.items.length} khối tìm kiếm nội bộ cho AI`
+                  : `Đã đọc ${preview.items.length} dòng · Đang chọn ${selectedCount} dòng`}
               </p>
             </div>
             <button className="inline-flex items-center gap-1.5 text-sm font-medium text-rose-300" onClick={onClear} type="button">
@@ -164,17 +166,20 @@ function OfficeImportPanel({
           )}
 
           <div className="scrollbar-subtle max-h-72 space-y-2 overflow-y-auto pr-1">
-            {preview.items.map((item, index) => (
+            {isKnowledge && preview.items.length > 0 ? (
+              <div className="rounded-xl border bg-white p-4">
+                <p className="text-sm font-semibold text-slate-800">Toàn bộ tài liệu sẽ được nhập</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Anh duyệt một lần ở cấp file. Các khối tìm kiếm chỉ là chỉ mục nội bộ, giúp AI tìm đúng đoạn, trang hoặc sheet/dòng khi khách hỏi.
+                </p>
+              </div>
+            ) : preview.items.map((item, index) => (
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-3" key={`${item.import_key || item.product_code}-${index}`}>
                 <input checked={item.selected} className="mt-1 h-4 w-4 accent-cyan-500" onChange={() => onToggle(index)} type="checkbox" />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-800">
-                    {isKnowledge ? item.title : `${item.product_code} — ${item.name}`}
-                  </span>
+                  <span className="block text-sm font-semibold text-slate-800">{`${item.product_code} — ${item.name}`}</span>
                   <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    {isKnowledge
-                      ? item.content.slice(0, 180)
-                      : `${item.dimensions || 'Chưa có kích thước'} · ${Number(item.unit_price).toLocaleString('vi-VN')} VND/${item.unit}`}
+                    {`${item.dimensions || 'Chưa có kích thước'} · ${Number(item.unit_price).toLocaleString('vi-VN')} VND/${item.unit}`}
                   </span>
                 </span>
               </label>
@@ -185,7 +190,7 @@ function OfficeImportPanel({
           <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
             <Field
               label="Trạng thái sau khi nhập"
-              hint="Nên chọn Bản nháp ở lần đầu. Chỉ chuyển sang Đã duyệt sau khi anh kiểm tra nội dung và giá."
+              hint={isKnowledge ? 'Đã duyệt: AI được phép tìm kiếm trong toàn bộ file này.' : 'Nên chọn Bản nháp ở lần đầu. Chỉ duyệt sau khi kiểm tra giá.'}
             >
               <select className={inputClass()} onChange={onApprovalChange} value={approvalStatus}>
                 <option value="draft">Bản nháp — AI chưa được dùng</option>
@@ -199,7 +204,7 @@ function OfficeImportPanel({
               type="button"
             >
               {saving ? <LoaderCircle className="animate-spin" size={17} /> : <UploadCloud size={17} />}
-              Nhập {selectedCount} mục
+              {isKnowledge ? 'Nhập toàn bộ file' : `Nhập ${selectedCount} dòng`}
             </button>
           </div>
         </div>
@@ -251,6 +256,22 @@ export default function GroundedDataManager({ pipeline }) {
     () => documents.filter((item) => item.enabled && item.approval_status === 'approved'),
     [documents],
   );
+  const documentSources = useMemo(() => {
+    const sources = new Map();
+    documents.forEach((item) => {
+      const key = item.metadata?.file_hash || item.source_label || item.id;
+      if (!sources.has(key)) sources.set(key, item);
+    });
+    return [...sources.values()];
+  }, [documents]);
+  const approvedSources = useMemo(() => {
+    const sources = new Map();
+    approvedDocuments.forEach((item) => {
+      const key = item.metadata?.file_hash || item.source_label || item.id;
+      if (!sources.has(key)) sources.set(key, item);
+    });
+    return [...sources.values()];
+  }, [approvedDocuments]);
 
   function updateStandard(event) {
     const { name, value } = event.target;
@@ -313,7 +334,7 @@ export default function GroundedDataManager({ pipeline }) {
             },
           })),
         });
-        setNotice(`Đã nhập ${response.imported} mục tiêu chuẩn${response.skipped ? `, bỏ qua ${response.skipped} mục đã nhập trước đó` : ''}.`);
+        setNotice(`Đã nhập toàn bộ file thành ${response.imported} khối tìm kiếm cho AI${response.skipped ? `, bỏ qua ${response.skipped} khối đã có` : ''}.`);
       } else {
         const response = await crmApi.importPriceWorkbook({
           pipeline_id: pipeline.id,
@@ -441,13 +462,13 @@ export default function GroundedDataManager({ pipeline }) {
           <ShieldCheck className="mt-0.5 shrink-0 text-cyan-400" size={22} />
           <div>
             <p className="font-semibold text-ink">Kho dữ liệu riêng của {pipeline?.name}</p>
-            <p className="mt-1 text-sm leading-6 text-slate-600">AI chỉ được dùng tài liệu đã duyệt và bảng giá đang hiệu lực. Giá bán không do AI tự tính hoặc tự đoán.</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">AI đọc và tra cứu toàn bộ Word, Excel, PDF đã duyệt. Mỗi câu trả lời phải dựa trên dữ liệu tìm thấy trong đúng file nguồn.</p>
           </div>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryCard icon={BookOpenCheck} label="Nguồn tiêu chuẩn" value={summary.knowledge_documents || 0} />
+        <SummaryCard icon={BookOpenCheck} label="File tiêu chuẩn" value={documentSources.length} />
         <SummaryCard icon={PackageCheck} label="Sản phẩm" value={summary.product_catalog || 0} />
         <SummaryCard icon={FileSpreadsheet} label="Bảng giá" value={summary.price_lists || 0} />
       </div>
@@ -487,8 +508,8 @@ export default function GroundedDataManager({ pipeline }) {
           <div className="rounded-xl border bg-slate-50 p-4">
             <div className="flex items-center justify-between"><p className="font-semibold text-ink">Nguồn đang được AI dùng</p><BadgeCheck className="text-emerald-400" size={19} /></div>
             <div className="scrollbar-subtle mt-3 max-h-[430px] space-y-2 overflow-y-auto pr-1">
-              {approvedDocuments.length ? approvedDocuments.map((item) => (
-                <div className="rounded-xl border bg-white p-3" key={item.id}><p className="text-sm font-semibold text-slate-800">{item.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{[item.source_label, item.version, item.page_reference].filter(Boolean).join(' • ') || 'Chưa ghi chú nguồn'}</p></div>
+              {approvedSources.length ? approvedSources.map((item) => (
+                <div className="rounded-xl border bg-white p-3" key={item.id}><p className="text-sm font-semibold text-slate-800">{item.source_label || item.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">Đã duyệt · AI được tra cứu toàn bộ nội dung đã lập chỉ mục</p></div>
               )) : <p className="rounded-xl border border-dashed p-5 text-center text-sm text-slate-500">Chưa có nguồn nào đã duyệt.</p>}
             </div>
           </div>

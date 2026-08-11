@@ -61,7 +61,7 @@ export async function loadKnowledgeContext(supabase, question, pipelineId) {
     )
     .eq('enabled', true)
     .eq('approval_status', 'approved')
-    .limit(200);
+    .limit(1000);
 
   query = pipelineId
     ? query.or(`pipeline_id.eq.${pipelineId},pipeline_id.is.null`)
