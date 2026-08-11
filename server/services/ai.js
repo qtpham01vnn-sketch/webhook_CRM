@@ -28,6 +28,8 @@ export function buildAiPrompt({ question, history = [], sources }) {
 QUY TẮC TUYỆT ĐỐI:
 - Chỉ được sử dụng dữ liệu trong NGUỒN ĐÃ PHÊ DUYỆT bên dưới.
 - Không tự suy đoán tiêu chuẩn, chỉ tiêu, giá, tồn kho, bảo hành hoặc kết quả thử nghiệm.
+- Mọi con số, đơn vị, dung sai và điều kiện áp dụng phải chép đúng từ nguồn; không tự quy đổi, làm tròn hoặc ghép số liệu từ các dòng không liên quan.
+- Khi nguồn là Excel, phải đọc số liệu cùng hàng/cột và nêu sheet/dòng nếu thông tin nguồn có cung cấp.
 - Giá bán chỉ do hệ thống bảng giá cấu trúc trả lời; nếu nguồn không có giá thì phải nói chưa có giá đã duyệt.
 - Nếu dữ liệu chưa đủ để kết luận, nói rõ chưa đủ căn cứ và đề nghị nhân viên hỗ trợ.
 - Mọi kết luận phải có ít nhất một mã nguồn đúng định dạng [SRC:ma-nguon].

@@ -1,5 +1,3 @@
-const WORD_CODE_PATTERN = /\bTC\s*[.\-_]?\s*09(?:\s*[.\-_]\s*\d{1,3})+\b/i;
-
 const HEADER_ALIASES = {
   product_code: ['ma san pham', 'ma sp', 'ma gach', 'ma hang', 'sku', 'product code'],
   name: ['ten san pham', 'ten sp', 'ten gach', 'ten hang', 'san pham', 'product name'],
@@ -33,88 +31,162 @@ function cleanText(value, max = 200_000) {
     .slice(0, max);
 }
 
-function canonicalCode(value) {
-  const match = String(value || '').match(WORD_CODE_PATTERN);
-  if (!match) return '';
-  return match[0]
-    .toUpperCase()
-    .replace(/\s+/g, '')
-    .replace(/[-_]/g, '.')
-    .replace(/\.{2,}/g, '.');
+export function chunkDocumentText(rawText, maxChars = 3200, overlapChars = 240) {
+  const text = cleanText(rawText);
+  if (!text) return [];
+  const chunks = [];
+  let start = 0;
+
+  while (start < text.length && chunks.length < 250) {
+    let end = Math.min(text.length, start + maxChars);
+    if (end < text.length) {
+      const minimumBreak = start + Math.floor(maxChars * 0.65);
+      const paragraphBreak = text.lastIndexOf('\n\n', end);
+      const lineBreak = text.lastIndexOf('\n', end);
+      const preferredBreak = Math.max(paragraphBreak, lineBreak);
+      if (preferredBreak >= minimumBreak) end = preferredBreak;
+    }
+    const content = cleanText(text.slice(start, end));
+    if (content) chunks.push(content);
+    if (end >= text.length) break;
+    start = Math.max(start + 1, end - overlapChars);
+  }
+  return chunks;
 }
 
-function titleForSection(line, code) {
-  const compact = cleanText(line, 300).replace(/^[-–—:\s]+|[-–—:\s]+$/g, '');
-  if (!compact) return code;
-  return compact.toUpperCase().startsWith(code) ? compact : `${code} - ${compact}`;
+function knowledgeDocumentsFromText(rawText, fileName, fileHash, sourceType) {
+  const baseName = cleanText(String(fileName || 'Tai lieu').replace(/\.(docx|xlsx)$/i, ''), 150) || 'Tai lieu';
+  const chunks = chunkDocumentText(rawText);
+  return chunks.map((content, index) => ({
+    title: `${baseName} — phần ${index + 1}/${chunks.length}`,
+    version: '',
+    page_reference: `Phần ${index + 1}/${chunks.length}`,
+    content,
+    import_key: `${fileHash || fileName}:${sourceType}-chunk-${index + 1}`,
+    metadata: { chunk_number: index + 1, total_chunks: chunks.length, source_type: sourceType },
+  }));
 }
 
-export function splitTechnicalStandards(rawText, fileName = 'Tai lieu Word') {
-  const lines = cleanText(rawText)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const sections = [];
-  const preamble = [];
-  let current = null;
+export function splitPdfPages(pages, fileName = 'Tai lieu PDF', fileHash = '') {
+  const safePages = Array.isArray(pages) ? pages.slice(0, 250) : [];
+  const totalPages = Number(pages?.totalPages) || safePages.length;
+  const baseName = cleanText(String(fileName || 'Tai lieu PDF').replace(/\.pdf$/i, ''), 120) || 'Tai lieu PDF';
+  const documents = [];
+  const emptyPages = [];
+  let contentTruncated = false;
 
-  for (const line of lines) {
-    const code = canonicalCode(line);
-    const looksLikeHeading = code && line.length <= 260;
-    if (looksLikeHeading && (!current || current.code !== code)) {
-      if (current?.lines.length) sections.push(current);
-      current = { code, title: titleForSection(line, code), lines: [line] };
+  for (const page of safePages) {
+    if (documents.length >= 250) {
+      contentTruncated = true;
+      break;
+    }
+    const pageNumber = Number(page?.pageNumber) || documents.length + 1;
+    const content = cleanText(page?.text);
+    if (!content) {
+      emptyPages.push(pageNumber);
       continue;
     }
-    if (current) current.lines.push(line);
-    else preamble.push(line);
-  }
-  if (current?.lines.length) sections.push(current);
-
-  if (!sections.length) {
-    const content = cleanText(lines.join('\n'));
-    return {
-      documents: content
-        ? [{
-            title: fileName.replace(/\.docx$/i, ''),
-            version: '',
-            page_reference: '',
-            content,
-          }]
-        : [],
-      warnings: content
-        ? ['Khong tim thay ma TC.09.xx; he thong tao mot tai lieu duy nhat de anh xem lai.']
-        : ['File Word khong co noi dung van ban co the doc.'],
-    };
-  }
-
-  if (preamble.length) {
-    sections[0].lines.unshift(`Thong tin mo dau tu file ${fileName}:`, ...preamble);
-  }
-
-  const seen = new Map();
-  for (const section of sections) {
-    const content = cleanText(section.lines.join('\n'));
-    if (!content) continue;
-    const existing = seen.get(section.code);
-    if (existing) {
-      existing.content = cleanText(`${existing.content}\n\n${content}`);
-    } else {
-      seen.set(section.code, {
-        title: section.title,
-        version: section.code,
-        page_reference: section.code,
-        content,
+    const pageChunks = chunkDocumentText(content);
+    pageChunks.forEach((pageContent, chunkIndex) => {
+      if (documents.length >= 250) {
+        contentTruncated = true;
+        return;
+      }
+      const suffix = pageChunks.length > 1 ? `, đoạn ${chunkIndex + 1}/${pageChunks.length}` : '';
+      documents.push({
+        title: `${baseName} — trang ${pageNumber}${suffix}`,
+        version: '',
+        page_reference: `Trang ${pageNumber}${suffix}`,
+        content: pageContent,
+        import_key: `${fileHash || fileName}:pdf-page-${pageNumber}-chunk-${chunkIndex + 1}`,
+        metadata: {
+          page_number: pageNumber,
+          page_chunk: chunkIndex + 1,
+          page_chunks: pageChunks.length,
+          source_type: 'pdf',
+        },
       });
+    });
+  }
+
+  const warnings = [];
+  if (totalPages > 250) {
+    warnings.push(`PDF có ${totalPages} trang; bản thử nghiệm chỉ đọc 250 trang đầu.`);
+  }
+  if (contentTruncated) {
+    warnings.push('PDF có quá nhiều nội dung; bản thử nghiệm chỉ lập chỉ mục 250 khối đầu tiên.');
+  }
+  if (emptyPages.length) {
+    warnings.push(
+      `${emptyPages.length} trang không có lớp văn bản (${emptyPages.slice(0, 12).join(', ')}${emptyPages.length > 12 ? ', …' : ''}). Nếu đây là bản scan, cần OCR trước khi nhập.`,
+    );
+  }
+  if (!documents.length) {
+    warnings.push('PDF không có nội dung văn bản có thể trích xuất; có thể đây là file scan hoặc file được bảo vệ.');
+  }
+  return { documents, warnings };
+}
+
+function spreadsheetCellText(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
+  return cleanText(value, 10_000);
+}
+
+export function excelSheetsToKnowledge(sheets, fileName = 'Tai lieu Excel', fileHash = '') {
+  const documents = [];
+  const warnings = [];
+  const baseName = cleanText(String(fileName || 'Tai lieu Excel').replace(/\.xlsx$/i, ''), 120) || 'Tai lieu Excel';
+
+  for (const sheet of sheets || []) {
+    const sheetName = cleanText(sheet?.name || sheet?.sheet || 'Sheet', 100);
+    const rows = Array.isArray(sheet?.rows) ? sheet.rows : Array.isArray(sheet?.data) ? sheet.data : [];
+    const nonEmptyRows = rows
+      .map((row, index) => ({
+        rowNumber: index + 1,
+        text: (Array.isArray(row) ? row : [row]).map(spreadsheetCellText).join(' | ').replace(/(?:\s*\|\s*)+$/g, ''),
+      }))
+      .filter((row) => row.text.trim());
+    if (!nonEmptyRows.length) {
+      warnings.push(`Sheet "${sheetName}" không có dữ liệu có thể đọc.`);
+      continue;
+    }
+
+    let currentRows = [];
+    let currentLength = 0;
+    const flush = () => {
+      if (!currentRows.length || documents.length >= 250) return;
+      const firstRow = currentRows[0].rowNumber;
+      const lastRow = currentRows[currentRows.length - 1].rowNumber;
+      const content = currentRows.map((row) => `Dòng ${row.rowNumber}: ${row.text}`).join('\n');
+      documents.push({
+        title: `${baseName} — sheet ${sheetName}, dòng ${firstRow}-${lastRow}`,
+        version: '',
+        page_reference: `Sheet ${sheetName}, dòng ${firstRow}-${lastRow}`,
+        content,
+        import_key: `${fileHash || fileName}:xlsx-${sheetName}-${firstRow}-${lastRow}`,
+        metadata: { sheet_name: sheetName, first_row: firstRow, last_row: lastRow, source_type: 'xlsx' },
+      });
+      currentRows = [];
+      currentLength = 0;
+    };
+
+    for (const row of nonEmptyRows) {
+      const rowLength = row.text.length + 20;
+      if (currentRows.length && currentLength + rowLength > 3200) flush();
+      if (documents.length >= 250) break;
+      currentRows.push(row);
+      currentLength += rowLength;
+    }
+    flush();
+    if (documents.length >= 250) {
+      warnings.push('Tài liệu Excel quá lớn; bản thử nghiệm chỉ lưu 250 khối dữ liệu đầu tiên.');
+      break;
     }
   }
 
-  return {
-    documents: [...seen.values()],
-    warnings: seen.size < sections.length
-      ? ['Mot so ma TC lap lai trong file da duoc ghep thanh cung mot muc.']
-      : [],
-  };
+  if (!documents.length) warnings.push('Excel không có nội dung có thể trích xuất.');
+  return { documents, warnings };
 }
 
 function headerKey(value) {
@@ -216,7 +288,10 @@ async function sha256(arrayBuffer) {
 }
 
 export async function parseWordFile(file) {
-  if (!/\.docx$/i.test(file.name)) throw new Error('Vui long chon file Word dinh dang .docx.');
+  if (!/\.docx$/i.test(file.name)) throw new Error('Vui lòng chọn file Word định dạng .docx.');
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error('File Word vượt quá 25 MB. Vui lòng tách thành file nhỏ hơn trước khi nhập.');
+  }
   const arrayBuffer = await file.arrayBuffer();
   const [mammothModule, fileHash] = await Promise.all([
     import('mammoth'),
@@ -224,17 +299,66 @@ export async function parseWordFile(file) {
   ]);
   const mammoth = mammothModule.default || mammothModule;
   const result = await mammoth.extractRawText({ arrayBuffer });
-  const parsed = splitTechnicalStandards(result.value, file.name);
+  const documents = knowledgeDocumentsFromText(result.value, file.name, fileHash, 'docx');
   return {
     kind: 'knowledge',
     file_name: file.name,
     file_hash: fileHash,
-    items: parsed.documents.map((document, index) => ({
-      ...document,
-      selected: true,
-      import_key: `${fileHash || file.name}:${document.version || index}`,
-    })),
-    warnings: [...(result.messages || []).map((message) => message.message), ...parsed.warnings],
+    file_type: 'docx',
+    items: documents.map((document) => ({ ...document, selected: true })),
+    warnings: [
+      ...(result.messages || []).map((message) => message.message),
+      ...(!documents.length ? ['File Word không có nội dung văn bản có thể đọc.'] : []),
+    ],
+  };
+}
+
+export async function parsePdfFile(file) {
+  if (!/\.pdf$/i.test(file.name)) throw new Error('Vui lòng chọn file PDF định dạng .pdf.');
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error('File PDF vượt quá 25 MB. Vui lòng tách thành các file nhỏ hơn trước khi nhập.');
+  }
+  const arrayBuffer = await file.arrayBuffer();
+  const fileHash = await sha256(arrayBuffer);
+  const { extractPdfPages } = await import('./pdfImport.js');
+  const pages = await extractPdfPages(arrayBuffer);
+  const parsed = splitPdfPages(pages, file.name, fileHash);
+  return {
+    kind: 'knowledge',
+    file_name: file.name,
+    file_hash: fileHash,
+    file_type: 'pdf',
+    items: parsed.documents.map((document) => ({ ...document, selected: true })),
+    warnings: parsed.warnings,
+  };
+}
+
+export async function parseKnowledgeFile(file) {
+  if (/\.docx$/i.test(file.name)) return parseWordFile(file);
+  if (/\.xlsx$/i.test(file.name)) return parseExcelKnowledgeFile(file);
+  if (/\.pdf$/i.test(file.name)) return parsePdfFile(file);
+  throw new Error('Vui lòng chọn file Word .docx, Excel .xlsx hoặc PDF .pdf.');
+}
+
+export async function parseExcelKnowledgeFile(file) {
+  if (!/\.xlsx$/i.test(file.name)) throw new Error('Vui lòng chọn file Excel định dạng .xlsx.');
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error('File Excel vượt quá 25 MB. Vui lòng tách thành file nhỏ hơn trước khi nhập.');
+  }
+  const arrayBuffer = await file.arrayBuffer();
+  const [{ default: readXlsxFile }, fileHash] = await Promise.all([
+    import('read-excel-file/browser'),
+    sha256(arrayBuffer),
+  ]);
+  const workbook = await readXlsxFile(file);
+  const parsed = excelSheetsToKnowledge(workbook, file.name, fileHash);
+  return {
+    kind: 'knowledge',
+    file_name: file.name,
+    file_hash: fileHash,
+    file_type: 'xlsx',
+    items: parsed.documents.map((document) => ({ ...document, selected: true })),
+    warnings: parsed.warnings,
   };
 }
 

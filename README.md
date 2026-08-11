@@ -190,10 +190,10 @@ Không lưu `META_APP_SECRET`, Page Access Token hoặc API key trong GitHub. C�
 
 Trong CRM, chọn Pipeline dành cho Gạch Phương Nam, mở menu dấu ba chấm và chọn **Dữ liệu AI**. Màn hình này có hai khu vực:
 
-- **Tiêu chuẩn kỹ thuật:** lưu tên tiêu chuẩn, cơ quan ban hành, phiên bản, trang/điều khoản và nội dung đã kiểm chứng. Có thể tải tệp `.docx`; hệ thống tự nhận diện và tách các phần `TC.09.01`, `TC.09.02`, `TC.09.03`... để xem trước rồi nhập hàng loạt.
+- **Tiêu chuẩn kỹ thuật:** chọn đồng thời tối đa 20 file Word `.docx`, Excel `.xlsx` hoặc PDF có lớp văn bản. Hệ thống đọc toàn bộ nội dung và bảng, sau đó tự tạo chỉ mục nội bộ để AI tìm đúng đoạn, trang hoặc sheet/dòng khi trả lời.
 - **Sản phẩm & bảng giá:** lưu danh mục sản phẩm và bảng giá có phiên bản, ngày hiệu lực, khu vực, nhóm khách hàng và đơn vị tính. Có thể tải tệp `.xlsx`; hệ thống tự dò hàng tiêu đề tiếng Việt/Anh, xem trước các dòng hợp lệ và báo các dòng bị bỏ qua.
 
-Tệp Word/Excel được đọc ngay trên trình duyệt; hệ thống chỉ gửi dữ liệu có cấu trúc đã chọn lên API, không tải nguyên tệp Office lên server. Dữ liệu nhập hàng loạt mặc định là **Bản nháp** để kiểm tra trước. Chỉ bản ghi có trạng thái `approved`, đang bật và còn hiệu lực mới được đưa cho AI. Giới hạn mỗi lần nhập là 250 tài liệu kỹ thuật hoặc 2.000 dòng sản phẩm/bảng giá.
+Khi nhập tiêu chuẩn, anh duyệt một lần cho cả danh sách file; không phải tự tách mã hoặc chọn từng dòng. File được đọc ngay trên trình duyệt và toàn bộ phần chữ/bảng trích xuất được gửi thành các khối tìm kiếm có gắn nguồn. Word giữ nội dung theo thứ tự tài liệu, Excel giữ tên sheet và số dòng, PDF giữ số trang. Chỉ file có trạng thái `approved`, đang bật và còn hiệu lực mới được AI sử dụng. Tab **Sản phẩm & bảng giá** vẫn nhận Excel bảng giá theo cấu trúc riêng. Giới hạn mỗi lần chọn là 20 file, mỗi file tối đa 25 MB và 250 khối tìm kiếm; PDF scan ảnh chưa có lớp chữ cần OCR trước khi nhập.
 
 Giá bán được truy vấn trực tiếp từ `product_prices`; mô hình AI không được tự tạo giá. Câu trả lời về tiêu chuẩn phải có mã nguồn dạng `[SRC:<uuid>]`. Nếu mô hình trả lời không có nguồn hợp lệ, backend loại bỏ câu trả lời đó và gửi thông báo an toàn thay thế.
 
