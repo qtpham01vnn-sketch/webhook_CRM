@@ -197,6 +197,8 @@ Khi nhập tiêu chuẩn, anh duyệt một lần cho cả danh sách file; khô
 
 File nhập ở trạng thái **Bản nháp** xuất hiện trong danh sách **Các file đã tải**. Bấm **Duyệt cho AI** ở từng file hoặc **Duyệt tất cả** để cập nhật toàn bộ khối thuộc file sang `approved`; có thể bấm **Tạm ngưng AI dùng file** để đưa file về Bản nháp mà không phải xóa hoặc tải lại.
 
+Khung **Test AI với kho tài liệu** cho phép hỏi trực tiếp trong CRM trước khi kết nối Messenger. Backend chỉ tìm nguồn `approved` thuộc đúng Pipeline, trả câu trả lời kèm file/trang/sheet nguồn và cho biết AI provider đang dùng. Nếu `AI_PROVIDER=disabled`, khung test vẫn kiểm tra được việc tìm nguồn nhưng sẽ báo cần bật Gemini/Ollama để tạo câu trả lời đầy đủ.
+
 Giá bán được truy vấn trực tiếp từ `product_prices`; mô hình AI không được tự tạo giá. Câu trả lời về tiêu chuẩn phải có mã nguồn dạng `[SRC:<uuid>]`. Nếu mô hình trả lời không có nguồn hợp lệ, backend loại bỏ câu trả lời đó và gửi thông báo an toàn thay thế.
 
 Tin nhắn Messenger được lưu vào `messenger_conversations` và `messenger_messages`. Khi đã thu được tối thiểu họ tên, số điện thoại và nhu cầu, hệ thống tạo hoặc cập nhật Lead trong Pipeline đã cấu hình bằng `META_PIPELINE_ID` hoặc `META_PIPELINE_SLUG`.

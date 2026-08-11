@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   AlertTriangle,
+  Bot,
   BookOpenCheck,
   CheckCircle2,
   Database,
@@ -9,7 +10,9 @@ import {
   FileSpreadsheet,
   LoaderCircle,
   PackageCheck,
+  RotateCcw,
   Save,
+  Send,
   ShieldCheck,
   TableProperties,
   UploadCloud,
@@ -220,6 +223,124 @@ function OfficeImportPanel({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function AiTestPanel({ pipeline }) {
+  const [question, setQuestion] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [testing, setTesting] = useState(false);
+  const [testError, setTestError] = useState('');
+  const suggestions = [
+    'Độ hút nước theo tài liệu đã duyệt là bao nhiêu?',
+    'Chỉ tiêu độ bền uốn được quy định như thế nào?',
+    'Hãy cho biết số liệu và file nguồn liên quan.',
+  ];
+
+  async function askAi(event) {
+    event?.preventDefault();
+    const content = question.trim();
+    if (!content || testing) return;
+    const userMessage = { role: 'user', text: content };
+    const previousMessages = messages;
+    setMessages((current) => [...current, userMessage]);
+    setQuestion('');
+    setTesting(true);
+    setTestError('');
+    try {
+      const response = await crmApi.testGroundedAi({
+        pipeline_id: pipeline.id,
+        question: content,
+        history: previousMessages.slice(-8).map((message) => ({
+          direction: message.role === 'assistant' ? 'outbound' : 'inbound',
+          text: message.text,
+        })),
+      });
+      setMessages((current) => [...current, {
+        role: 'assistant',
+        text: response.answer,
+        provider: response.provider,
+        configured: response.configured,
+        foundSources: response.found_sources,
+        sources: response.sources || [],
+      }]);
+    } catch (error) {
+      setTestError(error.message || 'Không thể kiểm tra AI lúc này.');
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  function useSuggestion(suggestion) {
+    setQuestion(suggestion);
+  }
+
+  return (
+    <div className="rounded-2xl border border-violet-400/30 bg-violet-400/5 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-violet-400/10 p-2.5 text-violet-400"><Bot size={22} /></div>
+          <div>
+            <p className="font-semibold text-ink">Test AI với kho tài liệu</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Hỏi thử ngay trong pipeline này. AI chỉ được dùng các file có nhãn “AI đang dùng”.</p>
+          </div>
+        </div>
+        {messages.length > 0 && (
+          <button className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700" onClick={() => { setMessages([]); setTestError(''); }} type="button">
+            <RotateCcw size={15} /> Xóa hội thoại thử
+          </button>
+        )}
+      </div>
+
+      <div className="scrollbar-subtle mt-4 max-h-96 space-y-3 overflow-y-auto rounded-xl border bg-white/70 p-3">
+        {!messages.length && (
+          <div className="py-3">
+            <p className="text-center text-sm text-slate-500">Chọn một câu gợi ý hoặc nhập câu hỏi thực tế của khách:</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {suggestions.map((suggestion) => (
+                <button className="rounded-full border border-violet-300/50 bg-violet-50 px-3 py-2 text-xs text-violet-700 hover:bg-violet-100" key={suggestion} onClick={() => useSuggestion(suggestion)} type="button">{suggestion}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {messages.map((message, index) => (
+          <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`} key={`${message.role}-${index}`}>
+            <div className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === 'user' ? 'bg-brand-600 text-white' : 'border bg-white text-slate-700'}`}>
+              <p className="whitespace-pre-wrap">{message.text}</p>
+              {message.role === 'assistant' && (
+                <div className="mt-3 border-t pt-2">
+                  <p className={`text-xs font-semibold ${message.configured && message.foundSources ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {!message.configured
+                      ? 'Chưa bật Gemini/Ollama — đang kiểm tra tìm nguồn an toàn'
+                      : message.foundSources
+                        ? `AI: ${message.provider}`
+                        : 'Không tìm thấy nguồn phù hợp với câu hỏi'}
+                  </p>
+                  {message.sources?.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {message.sources.map((source) => (
+                        <p className="text-xs text-slate-500" key={source.source_id}>
+                          Nguồn: {source.file_name || source.title}{source.page_reference ? ` · ${source.page_reference}` : ''}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {testing && <div className="flex items-center gap-2 text-sm text-violet-600"><LoaderCircle className="animate-spin" size={16} /> AI đang tìm trong tài liệu đã duyệt…</div>}
+      </div>
+
+      <form className="mt-3 flex gap-2" onSubmit={askAi}>
+        <input className={inputClass()} disabled={testing} onChange={(event) => setQuestion(event.target.value)} placeholder="VD: Độ hút nước của gạch 60x60 là bao nhiêu?" value={question} />
+        <button className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50" disabled={testing || !question.trim()} type="submit">
+          {testing ? <LoaderCircle className="animate-spin" size={17} /> : <Send size={17} />} Hỏi AI
+        </button>
+      </form>
+      {testError && <p className="mt-3 rounded-xl border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm text-rose-600">{testError}</p>}
     </div>
   );
 }
@@ -584,6 +705,8 @@ export default function GroundedDataManager({ pipeline }) {
         preview={importPreview}
         saving={saving}
       />
+
+      {tab === 'standards' && <AiTestPanel pipeline={pipeline} />}
 
       {tab === 'standards' ? (
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">

@@ -100,6 +100,8 @@ export const crmApi = {
     request(`/grounded/summary?${new URLSearchParams({ pipeline_id: pipelineId })}`),
   getKnowledgeDocuments: (pipelineId) =>
     request(`/grounded/knowledge?${new URLSearchParams({ pipeline_id: pipelineId })}`),
+  testGroundedAi: (input) =>
+    request('/grounded/test-ai', { method: 'POST', body: JSON.stringify(input) }),
   createKnowledgeDocument: (input) =>
     request('/grounded/knowledge', { method: 'POST', body: JSON.stringify(input) }),
   updateKnowledgeDocument: (documentId, input) =>
