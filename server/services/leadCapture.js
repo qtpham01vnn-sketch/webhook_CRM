@@ -1,3 +1,5 @@
+import { forwardLeadToExternalApp } from './leadForwarder.js';
+
 const GREETING_ONLY = /^(xin chao|chao|hello|hi|alo|hey|cam on|ok|oke)[!. ]*$/i;
 
 export function normalizePhone(input) {
@@ -119,6 +121,11 @@ export async function syncMessengerLead(supabase, conversation) {
   if (conversation.lead_id) {
     const { error } = await supabase.from('leads').update(leadPayload).eq('id', conversation.lead_id);
     if (error) throw error;
+    await forwardLeadToExternalApp({
+      external_id: conversation.lead_id,
+      source: 'facebook_messenger',
+      ...leadPayload,
+    });
     return { conversation, created: false, updated: true };
   }
 
@@ -136,6 +143,12 @@ export async function syncMessengerLead(supabase, conversation) {
     .select('*')
     .single();
   if (conversationError) throw conversationError;
+
+  await forwardLeadToExternalApp({
+    external_id: lead.id,
+    source: 'facebook_messenger',
+    ...leadPayload,
+  });
 
   return { conversation: savedConversation, created: true, updated: false };
 }

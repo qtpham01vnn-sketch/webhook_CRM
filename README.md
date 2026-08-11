@@ -201,6 +201,8 @@ Khung **Test AI với kho tài liệu** cho phép hỏi trực tiếp trong CRM 
 
 Câu chào hỏi hoặc ngoài nghiệp vụ được trả lời thân thiện, không gắn nhầm nguồn kỹ thuật. Bot chủ động xin họ tên, số điện thoại, nhu cầu và dẫn khách sang form đúng Pipeline để tạo Lead trong CRM.
 
+App bên ngoài có thể dùng chung kho AI qua `POST /api/v1/integrations/chat/query` với header `X-Integration-Key`. Khóa này chỉ có quyền hỏi kho tài liệu, không cấp quyền quản trị CRM. Khi cấu hình `LEAD_FORWARD_URL` và `LEAD_FORWARD_TOKEN`, Lead từ form CRM hoặc Messenger được chuyển tiếp sang app PXSX; lỗi chuyển tiếp không làm mất Lead gốc.
+
 Giá bán được truy vấn trực tiếp từ `product_prices`; mô hình AI không được tự tạo giá. Câu trả lời về tiêu chuẩn phải có mã nguồn dạng `[SRC:<uuid>]`. Nếu mô hình trả lời không có nguồn hợp lệ, backend loại bỏ câu trả lời đó và gửi thông báo an toàn thay thế.
 
 Tin nhắn Messenger được lưu vào `messenger_conversations` và `messenger_messages`. Khi đã thu được tối thiểu họ tên, số điện thoại và nhu cầu, hệ thống tạo hoặc cập nhật Lead trong Pipeline đã cấu hình bằng `META_PIPELINE_ID` hoặc `META_PIPELINE_SLUG`.

@@ -120,6 +120,7 @@ export async function generateAiReply({
   structuredPriceReply = '',
   leadFollowUp = '',
   contactUrl = '',
+  sourceCatalog = [],
 }) {
   if (structuredPriceReply) {
     return {
@@ -132,7 +133,7 @@ export async function generateAiReply({
   const intent = conversationalIntent(question);
   if (intent) {
     return {
-      text: buildConversationalReply({ intent, contactUrl, leadFollowUp }),
+      text: buildConversationalReply({ intent, contactUrl, leadFollowUp, sourceCatalog }),
       provider: 'friendly-handoff',
       grounded: true,
     };

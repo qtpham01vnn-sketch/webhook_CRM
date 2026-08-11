@@ -116,3 +116,34 @@ export async function loadKnowledgeContext(supabase, question, pipelineId) {
 
   return sources;
 }
+
+export async function loadApprovedSourceCatalog(supabase, pipelineId) {
+  let query = supabase
+    .from('knowledge_documents')
+    .select('title, source_label, document_type, version, metadata')
+    .eq('enabled', true)
+    .eq('approval_status', 'approved')
+    .limit(1000);
+  query = pipelineId
+    ? query.or(`pipeline_id.eq.${pipelineId},pipeline_id.is.null`)
+    : query.is('pipeline_id', null);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const unique = new Map();
+  for (const document of data || []) {
+    const fileName = String(document.source_label || document.title || '').trim();
+    if (!fileName) continue;
+    const key = String(document.metadata?.file_hash || fileName).toLowerCase();
+    if (!unique.has(key)) {
+      unique.set(key, {
+        fileName,
+        documentType: document.document_type,
+        version: document.version,
+      });
+    }
+  }
+  return [...unique.values()].sort((left, right) =>
+    left.fileName.localeCompare(right.fileName, 'vi'),
+  );
+}

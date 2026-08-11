@@ -9,6 +9,7 @@ import { rankKnowledgeDocuments } from '../services/knowledge.js';
 import { extractLeadSignals, missingLeadFields, normalizePhone } from '../services/leadCapture.js';
 import { formatPriceReply, isPriceQuestion, rankProducts } from '../services/pricing.js';
 import { generateAiReply, validateGroundedReply } from '../services/ai.js';
+import { conversationalIntent } from '../services/customerEngagement.js';
 import {
   extractMessengerTextEvents,
   verifyMetaSignature,
@@ -123,6 +124,26 @@ test('Messenger hoi tung thong tin lead khong lap lai loi moi chung', async () =
   });
   assert.match(reply.text, /xin số điện thoại/);
   assert.doesNotMatch(reply.text, /họ tên, số điện thoại và nhu cầu/);
+});
+
+test('cau hoi ve huong dan bo nho va tai lieu khong tim vao TC ky thuat', async () => {
+  assert.equal(conversationalIntent('Instruction: hướng dẫn tôi dùng chatbot'), 'help');
+  assert.equal(conversationalIntent('Bộ nhớ của em lưu những gì?'), 'memory');
+  assert.equal(conversationalIntent('Anh muốn tải bộ tài liệu tiêu chuẩn trong bộ nhớ'), 'source-management');
+  assert.equal(conversationalIntent('Tiêu chuẩn'), 'standards-overview');
+
+  const reply = await generateAiReply({
+    question: 'Các tài liệu đang dùng gồm file nào?',
+    sources: [],
+    sourceCatalog: [
+      { fileName: 'Bộ TCNB NNVL Lần 2 (TC.09.01).docx' },
+      { fileName: 'TC 09.03 40x80.xlsx' },
+    ],
+  });
+  assert.equal(reply.provider, 'friendly-handoff');
+  assert.match(reply.text, /2 file đã duyệt/);
+  assert.match(reply.text, /TC 09[.]03 40x80[.]xlsx/);
+  assert.match(reply.text, /không giữ nguyên file gốc/);
 });
 
 test('lead capture chuan hoa so dien thoai va trich xuat thong tin', () => {
