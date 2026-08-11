@@ -7,6 +7,8 @@ import { createClient } from '@supabase/supabase-js';
 import { createAdminAuthMiddleware } from './middleware/adminAuth.js';
 import { createGroundedDataRouter } from './routes/groundedData.js';
 import { createMetaWebhookRouter } from './routes/metaWebhook.js';
+import { createChatIntegrationRouter } from './routes/chatIntegration.js';
+import { forwardLeadToExternalApp } from './services/leadForwarder.js';
 
 dotenv.config();
 
@@ -251,6 +253,9 @@ function extractLead(payload) {
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'mini-saas-crm-api' });
 });
+
+// API server-to-server co token rieng, khong cap quyen quan tri CRM cho app tich hop.
+app.use('/api/v1/integrations', createChatIntegrationRouter({ supabase }));
 
 // Khi ADMIN_API_TOKEN duoc dat, chi cac endpoint public can thiet moi bo qua xac thuc.
 // Neu chua dat, hanh vi cu duoc giu nguyen de deploy code khong lam gian doan CRM.
@@ -737,6 +742,12 @@ app.post(
       .single();
 
     if (error) throw error;
+
+    await forwardLeadToExternalApp({
+      external_id: data.id,
+      source: `crm_webhook:${req.params.slug}`,
+      ...lead,
+    });
 
     return res.status(201).json({
       status: 'success',

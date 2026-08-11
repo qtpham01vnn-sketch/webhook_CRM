@@ -1,7 +1,13 @@
 import express from 'express';
 import { generateAiReply } from '../services/ai.js';
-import { loadKnowledgeContext } from '../services/knowledge.js';
-import { loadPipelineContactUrl } from '../services/customerEngagement.js';
+import {
+  loadApprovedSourceCatalog,
+  loadKnowledgeContext,
+} from '../services/knowledge.js';
+import {
+  conversationalIntent,
+  loadPipelineContactUrl,
+} from '../services/customerEngagement.js';
 
 function asyncHandler(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -79,11 +85,19 @@ export function createGroundedDataRouter({ supabase }) {
             text: text(message?.text, 2000) || '',
           })).filter((message) => message.text)
         : [];
-      const [sources, contactUrl] = await Promise.all([
-        loadKnowledgeContext(supabase, question, pipelineId),
+      const intent = conversationalIntent(question);
+      const [sources, contactUrl, sourceCatalog] = await Promise.all([
+        intent ? Promise.resolve([]) : loadKnowledgeContext(supabase, question, pipelineId),
         loadPipelineContactUrl(supabase, pipelineId),
+        intent ? loadApprovedSourceCatalog(supabase, pipelineId) : Promise.resolve([]),
       ]);
-      const reply = await generateAiReply({ question, history, sources, contactUrl });
+      const reply = await generateAiReply({
+        question,
+        history,
+        sources,
+        contactUrl,
+        sourceCatalog,
+      });
       const selectedProvider = String(process.env.AI_PROVIDER || 'disabled').toLowerCase();
       const providerConfigured =
         (selectedProvider === 'gemini' && Boolean(process.env.GEMINI_API_KEY)) ||

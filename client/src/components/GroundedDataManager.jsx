@@ -310,12 +310,14 @@ function AiTestPanel({ pipeline }) {
               <p className="whitespace-pre-wrap">{message.text}</p>
               {message.role === 'assistant' && (
                 <div className="mt-3 border-t pt-2">
-                  <p className={`text-xs font-semibold ${message.configured && message.foundSources ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  <p className={`text-xs font-semibold ${message.foundSources || ['friendly-handoff', 'no-source'].includes(message.provider) ? 'text-emerald-600' : 'text-amber-600'}`}>
                     {!message.configured
                       ? 'Chưa bật Gemini/Ollama — đang kiểm tra tìm nguồn an toàn'
                       : message.foundSources
                         ? `AI: ${message.provider}`
-                        : 'Không tìm thấy nguồn phù hợp với câu hỏi'}
+                        : message.provider === 'friendly-handoff'
+                          ? 'Trợ lý hệ thống — không cần tra tài liệu kỹ thuật'
+                          : 'Không có căn cứ phù hợp — AI không tự suy đoán'}
                   </p>
                   {message.sources?.length > 0 && (
                     <div className="mt-2 space-y-1">
