@@ -94,6 +94,32 @@ export function createGroundedDataRouter({ supabase }) {
   );
 
   router.patch(
+    '/knowledge-sources/approval',
+    asyncHandler(async (req, res) => {
+      const pipelineId = requiredText(req.body.pipeline_id, 'pipeline_id', 80);
+      const approvalStatus = text(req.body.approval_status, 30) === 'approved' ? 'approved' : 'draft';
+      const fileHash = text(req.body.file_hash, 128);
+      const documentIds = Array.isArray(req.body.document_ids)
+        ? req.body.document_ids.map((id) => text(id, 80)).filter(Boolean).slice(0, 250)
+        : [];
+      if (!fileHash && !documentIds.length) {
+        return res.status(400).json({ message: 'Can file_hash hoac document_ids de cap nhat nguon.' });
+      }
+
+      let query = supabase
+        .from('knowledge_documents')
+        .update({ approval_status: approvalStatus, updated_at: new Date().toISOString() })
+        .eq('pipeline_id', pipelineId);
+      query = fileHash
+        ? query.contains('metadata', { file_hash: fileHash })
+        : query.in('id', documentIds);
+      const { data, error } = await query.select('id, approval_status');
+      if (error) throw error;
+      res.json({ data: data || [], updated: data?.length || 0, approval_status: approvalStatus });
+    }),
+  );
+
+  router.patch(
     '/knowledge/:id',
     asyncHandler(async (req, res) => {
       const allowed = [

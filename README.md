@@ -195,6 +195,8 @@ Trong CRM, chọn Pipeline dành cho Gạch Phương Nam, mở menu dấu ba ch�
 
 Khi nhập tiêu chuẩn, anh duyệt một lần cho cả danh sách file; không phải tự tách mã hoặc chọn từng dòng. File được đọc ngay trên trình duyệt và toàn bộ phần chữ/bảng trích xuất được gửi thành các khối tìm kiếm có gắn nguồn. Word giữ nội dung theo thứ tự tài liệu, Excel giữ tên sheet và số dòng, PDF giữ số trang. Chỉ file có trạng thái `approved`, đang bật và còn hiệu lực mới được AI sử dụng. Tab **Sản phẩm & bảng giá** vẫn nhận Excel bảng giá theo cấu trúc riêng. Giới hạn mỗi lần chọn là 20 file, mỗi file tối đa 25 MB và 250 khối tìm kiếm; PDF scan ảnh chưa có lớp chữ cần OCR trước khi nhập.
 
+File nhập ở trạng thái **Bản nháp** xuất hiện trong danh sách **Các file đã tải**. Bấm **Duyệt cho AI** ở từng file hoặc **Duyệt tất cả** để cập nhật toàn bộ khối thuộc file sang `approved`; có thể bấm **Tạm ngưng AI dùng file** để đưa file về Bản nháp mà không phải xóa hoặc tải lại.
+
 Giá bán được truy vấn trực tiếp từ `product_prices`; mô hình AI không được tự tạo giá. Câu trả lời về tiêu chuẩn phải có mã nguồn dạng `[SRC:<uuid>]`. Nếu mô hình trả lời không có nguồn hợp lệ, backend loại bỏ câu trả lời đó và gửi thông báo an toàn thay thế.
 
 Tin nhắn Messenger được lưu vào `messenger_conversations` và `messenger_messages`. Khi đã thu được tối thiểu họ tên, số điện thoại và nhu cầu, hệ thống tạo hoặc cập nhật Lead trong Pipeline đã cấu hình bằng `META_PIPELINE_ID` hoặc `META_PIPELINE_SLUG`.
