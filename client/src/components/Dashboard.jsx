@@ -410,7 +410,7 @@ function ExportForm({ busy, currentPipeline, defaultSearch, onCancel, onSubmit }
   );
 }
 
-function FormBuilder({ busy, copied, config, embedCode, error, onCancel, onChange, onCopy, onSubmit }) {
+function FormBuilder({ busy, copied, config, embedCode, embedUrl, error, linkCopied, onCancel, onChange, onCopy, onCopyLink, onSubmit }) {
   function toggleField(option) {
     const exists = config.fields.some((field) => field.key === option.key);
     const fields = exists
@@ -466,9 +466,16 @@ function FormBuilder({ busy, copied, config, embedCode, error, onCancel, onChang
           </div>
         </div>
       </div>
-      <div>
-        <div className="mb-2 flex items-center justify-between"><p className="text-sm font-semibold text-slate-800">Mã nhúng</p><button className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={onCopy} type="button">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Đã copy' : 'Copy'}</button></div>
+      <div className="space-y-4">
+        <div>
+          <div className="mb-2 flex items-center justify-between"><p className="text-sm font-semibold text-slate-800">Link form trực tiếp</p><button className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={onCopyLink} type="button">{linkCopied ? <Check size={14} /> : <Copy size={14} />} {linkCopied ? 'Đã copy link' : 'Copy link'}</button></div>
+          <input className="w-full rounded-xl border bg-slate-50 px-3 py-3 font-mono text-xs text-slate-700" readOnly value={embedUrl} />
+          <p className="mt-1.5 text-xs text-slate-500">Dùng link ngắn này để mở form hoặc gửi trực tiếp cho khách hàng.</p>
+        </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between"><p className="text-sm font-semibold text-slate-800">Mã iframe nhúng Website/Landing Page</p><button className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={onCopy} type="button">{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Đã copy mã' : 'Copy mã nhúng'}</button></div>
         <textarea className="min-h-32 w-full resize-y rounded-xl border bg-slate-50 px-3 py-3 font-mono text-xs leading-5 text-slate-700" readOnly value={embedCode} />
+        </div>
       </div>
       {error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
       <div className="flex justify-end gap-3"><button className="rounded-xl border px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50" onClick={onCancel} type="button">Hủy</button><button className="inline-flex min-w-36 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60" disabled={busy} type="submit">{busy ? <LoaderCircle className="animate-spin" size={17} /> : <Save size={17} />} Lưu Form</button></div>
@@ -509,6 +516,7 @@ export default function Dashboard() {
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [formCopied, setFormCopied] = useState(false);
+  const [formLinkCopied, setFormLinkCopied] = useState(false);
   const [shareSettings, setShareSettings] = useState(null);
   const [formSettings, setFormSettings] = useState(DEFAULT_FORM_CONFIG);
   const [columnState, setColumnState] = useState({
@@ -685,6 +693,7 @@ export default function Dashboard() {
     if (!selectedPipeline) return;
     setFormError('');
     setFormCopied(false);
+    setFormLinkCopied(false);
     try {
       const response = await crmApi.getForm(selectedPipeline.id);
       setFormSettings(response.data);
@@ -714,6 +723,13 @@ export default function Dashboard() {
     await navigator.clipboard.writeText(embedCode);
     setFormCopied(true);
     window.setTimeout(() => setFormCopied(false), 1800);
+  }
+
+  async function copyEmbedLink() {
+    if (!embedUrl) return;
+    await navigator.clipboard.writeText(embedUrl);
+    setFormLinkCopied(true);
+    window.setTimeout(() => setFormLinkCopied(false), 1800);
   }
 
   async function copyWebhook() {
@@ -1119,7 +1135,7 @@ export default function Dashboard() {
       </Modal>
 
       <Modal
-        description="Chọn trường, xem trước và copy mã iframe để nhúng form vào Website hoặc Landing Page."
+        description="Chọn trường, lấy link form ngắn để gửi khách hoặc copy mã iframe để nhúng vào Website/Landing Page."
         onClose={() => setFormOpen(false)}
         open={formOpen}
         title="Trình tạo Form & Mã nhúng"
@@ -1130,10 +1146,13 @@ export default function Dashboard() {
           copied={formCopied}
           config={formSettings}
           embedCode={embedCode}
+          embedUrl={embedUrl}
           error={formError}
+          linkCopied={formLinkCopied}
           onCancel={() => setFormOpen(false)}
           onChange={setFormSettings}
           onCopy={copyEmbedCode}
+          onCopyLink={copyEmbedLink}
           onSubmit={saveFormSettings}
         />
       </Modal>
