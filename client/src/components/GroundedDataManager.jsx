@@ -109,6 +109,7 @@ function OfficeImportPanel({
 }) {
   const isKnowledge = mode === 'knowledge';
   const selectedCount = preview?.items.filter((item) => item.selected).length || 0;
+  const knowledgeFiles = isKnowledge ? (preview?.files || (preview ? [preview] : [])) : [];
   return (
     <div className="rounded-2xl border border-cyan-400/30 bg-cyan-400/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -122,18 +123,19 @@ function OfficeImportPanel({
             </p>
             <p className="mt-1 text-sm leading-6 text-slate-600">
               {isKnowledge
-                ? 'Chọn một file tiêu chuẩn. Hệ thống đọc toàn bộ chữ và bảng, tự lập chỉ mục tìm kiếm để AI tra đúng nội dung và số liệu trong file.'
+                ? 'Chọn một hoặc nhiều file tiêu chuẩn. Hệ thống đọc toàn bộ chữ và bảng, tự lập chỉ mục để AI tra đúng nội dung và số liệu.'
                 : 'Chọn file .xlsx. Hệ thống tự dò các cột mã sản phẩm, tên, kích thước, đơn giá và điều kiện giá.'}
             </p>
           </div>
         </div>
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
           {parsing ? <LoaderCircle className="animate-spin" size={17} /> : <UploadCloud size={17} />}
-          {parsing ? 'Đang đọc toàn bộ file…' : `Chọn file ${isKnowledge ? 'Word/Excel/PDF' : 'Excel bảng giá'}`}
+          {parsing ? 'Đang đọc các file…' : `Chọn ${isKnowledge ? 'nhiều file Word/Excel/PDF' : 'file Excel bảng giá'}`}
           <input
             accept={isKnowledge ? '.docx,.xlsx,.pdf' : '.xlsx'}
             className="sr-only"
             disabled={parsing || saving}
+            multiple={isKnowledge}
             onChange={onFile}
             type="file"
           />
@@ -144,15 +146,17 @@ function OfficeImportPanel({
         <div className="mt-4 space-y-4 border-t border-cyan-400/20 pt-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-ink">{preview.file_name}</p>
+              <p className="text-sm font-semibold text-ink">
+                {isKnowledge ? `${knowledgeFiles.length} file đã sẵn sàng` : preview.file_name}
+              </p>
               <p className="mt-1 text-xs text-slate-500">
                 {isKnowledge
-                  ? `Đã đọc toàn bộ file và tạo ${preview.items.length} khối tìm kiếm nội bộ cho AI`
+                  ? `Đã đọc toàn bộ và tạo ${preview.items.length} khối tìm kiếm nội bộ cho AI`
                   : `Đã đọc ${preview.items.length} dòng · Đang chọn ${selectedCount} dòng`}
               </p>
             </div>
             <button className="inline-flex items-center gap-1.5 text-sm font-medium text-rose-300" onClick={onClear} type="button">
-              <X size={15} /> Bỏ file
+              <X size={15} /> {isKnowledge && knowledgeFiles.length > 1 ? 'Bỏ danh sách' : 'Bỏ file'}
             </button>
           </div>
 
@@ -167,10 +171,17 @@ function OfficeImportPanel({
 
           <div className="scrollbar-subtle max-h-72 space-y-2 overflow-y-auto pr-1">
             {isKnowledge && preview.items.length > 0 ? (
-              <div className="rounded-xl border bg-white p-4">
-                <p className="text-sm font-semibold text-slate-800">Toàn bộ tài liệu sẽ được nhập</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Anh duyệt một lần ở cấp file. Các khối tìm kiếm chỉ là chỉ mục nội bộ, giúp AI tìm đúng đoạn, trang hoặc sheet/dòng khi khách hỏi.
+              <div className="space-y-2">
+                {knowledgeFiles.map((filePreview) => (
+                  <div className="rounded-xl border bg-white p-3" key={`${filePreview.file_hash}-${filePreview.file_name}`}>
+                    <p className="text-sm font-semibold text-slate-800">{filePreview.file_name}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Đã đọc toàn bộ · {filePreview.items.length} khối tìm kiếm · {filePreview.file_type.toUpperCase()}
+                    </p>
+                  </div>
+                ))}
+                <p className="px-1 text-xs leading-5 text-slate-500">
+                  Anh duyệt một lần cho cả danh sách. Các khối chỉ là chỉ mục nội bộ để AI tìm đúng đoạn, trang hoặc sheet/dòng.
                 </p>
               </div>
             ) : preview.items.map((item, index) => (
@@ -204,7 +215,7 @@ function OfficeImportPanel({
               type="button"
             >
               {saving ? <LoaderCircle className="animate-spin" size={17} /> : <UploadCloud size={17} />}
-              {isKnowledge ? 'Nhập toàn bộ file' : `Nhập ${selectedCount} dòng`}
+              {isKnowledge ? `Nhập toàn bộ ${knowledgeFiles.length} file` : `Nhập ${selectedCount} dòng`}
             </button>
           </div>
         </div>
@@ -284,15 +295,37 @@ export default function GroundedDataManager({ pipeline }) {
   }
 
   async function handleOfficeFile(event) {
-    const file = event.target.files?.[0];
+    const files = [...(event.target.files || [])];
     event.target.value = '';
-    if (!file) return;
+    if (!files.length) return;
     setParsingFile(true);
     setError('');
     setNotice('');
     try {
-      const preview = tab === 'standards' ? await parseKnowledgeFile(file) : await parseExcelFile(file);
-      setImportPreview(preview);
+      if (tab === 'standards') {
+        if (files.length > 20) throw new Error('Mỗi lần chọn tối đa 20 file để trình duyệt xử lý ổn định.');
+        const parsedFiles = [];
+        const fileWarnings = [];
+        for (const file of files) {
+          try {
+            const parsed = await parseKnowledgeFile(file);
+            parsedFiles.push(parsed);
+            fileWarnings.push(...parsed.warnings.map((warning) => `${file.name}: ${warning}`));
+          } catch (fileError) {
+            fileWarnings.push(`${file.name}: ${fileError.message || 'Không thể đọc file.'}`);
+          }
+        }
+        if (!parsedFiles.length) throw new Error(fileWarnings.join(' '));
+        setImportPreview({
+          kind: 'knowledge',
+          files: parsedFiles,
+          file_name: parsedFiles.length === 1 ? parsedFiles[0].file_name : `${parsedFiles.length} file tiêu chuẩn`,
+          items: parsedFiles.flatMap((preview) => preview.items),
+          warnings: fileWarnings,
+        });
+      } else {
+        setImportPreview(await parseExcelFile(files[0]));
+      }
       setImportApproval('draft');
     } catch (fileError) {
       setImportPreview(null);
@@ -319,22 +352,29 @@ export default function GroundedDataManager({ pipeline }) {
     setNotice('');
     try {
       if (importPreview.kind === 'knowledge') {
-        const response = await crmApi.importKnowledgeDocuments({
-          pipeline_id: pipeline.id,
-          file_name: importPreview.file_name,
-          effective_from: standard.effective_from || null,
-          approval_status: importApproval,
-          documents: selected.map(({ selected: _selected, ...document }) => ({
-            ...document,
-            source_label: importPreview.file_name,
-            metadata: {
-              ...(document.metadata || {}),
-              file_hash: importPreview.file_hash,
-              file_type: importPreview.file_type || 'docx',
-            },
-          })),
-        });
-        setNotice(`Đã nhập toàn bộ file thành ${response.imported} khối tìm kiếm cho AI${response.skipped ? `, bỏ qua ${response.skipped} khối đã có` : ''}.`);
+        const files = importPreview.files || [importPreview];
+        let imported = 0;
+        let skipped = 0;
+        for (const filePreview of files) {
+          const response = await crmApi.importKnowledgeDocuments({
+            pipeline_id: pipeline.id,
+            file_name: filePreview.file_name,
+            effective_from: standard.effective_from || null,
+            approval_status: importApproval,
+            documents: filePreview.items.map(({ selected: _selected, ...document }) => ({
+              ...document,
+              source_label: filePreview.file_name,
+              metadata: {
+                ...(document.metadata || {}),
+                file_hash: filePreview.file_hash,
+                file_type: filePreview.file_type || 'docx',
+              },
+            })),
+          });
+          imported += response.imported || 0;
+          skipped += response.skipped || 0;
+        }
+        setNotice(`Đã nhập toàn bộ ${files.length} file thành ${imported} khối tìm kiếm cho AI${skipped ? `, bỏ qua ${skipped} khối đã có` : ''}.`);
       } else {
         const response = await crmApi.importPriceWorkbook({
           pipeline_id: pipeline.id,

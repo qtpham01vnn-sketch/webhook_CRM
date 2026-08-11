@@ -190,10 +190,10 @@ Không lưu `META_APP_SECRET`, Page Access Token hoặc API key trong GitHub. C�
 
 Trong CRM, chọn Pipeline dành cho Gạch Phương Nam, mở menu dấu ba chấm và chọn **Dữ liệu AI**. Màn hình này có hai khu vực:
 
-- **Tiêu chuẩn kỹ thuật:** tải nguyên file Word `.docx`, Excel `.xlsx` hoặc PDF có lớp văn bản. Hệ thống đọc toàn bộ nội dung và bảng, sau đó tự tạo chỉ mục nội bộ để AI tìm đúng đoạn, trang hoặc sheet/dòng khi trả lời.
+- **Tiêu chuẩn kỹ thuật:** chọn đồng thời tối đa 20 file Word `.docx`, Excel `.xlsx` hoặc PDF có lớp văn bản. Hệ thống đọc toàn bộ nội dung và bảng, sau đó tự tạo chỉ mục nội bộ để AI tìm đúng đoạn, trang hoặc sheet/dòng khi trả lời.
 - **Sản phẩm & bảng giá:** lưu danh mục sản phẩm và bảng giá có phiên bản, ngày hiệu lực, khu vực, nhóm khách hàng và đơn vị tính. Có thể tải tệp `.xlsx`; hệ thống tự dò hàng tiêu đề tiếng Việt/Anh, xem trước các dòng hợp lệ và báo các dòng bị bỏ qua.
 
-Khi nhập tiêu chuẩn, anh duyệt một lần ở cấp file; không phải tự tách mã hoặc chọn từng dòng. File được đọc ngay trên trình duyệt và toàn bộ phần chữ/bảng trích xuất được gửi thành các khối tìm kiếm có gắn nguồn. Word giữ nội dung theo thứ tự tài liệu, Excel giữ tên sheet và số dòng, PDF giữ số trang. Chỉ file có trạng thái `approved`, đang bật và còn hiệu lực mới được AI sử dụng. Tab **Sản phẩm & bảng giá** vẫn nhận Excel bảng giá theo cấu trúc riêng. Giới hạn mỗi file tiêu chuẩn là 25 MB và 250 khối tìm kiếm; PDF scan ảnh chưa có lớp chữ cần OCR trước khi nhập.
+Khi nhập tiêu chuẩn, anh duyệt một lần cho cả danh sách file; không phải tự tách mã hoặc chọn từng dòng. File được đọc ngay trên trình duyệt và toàn bộ phần chữ/bảng trích xuất được gửi thành các khối tìm kiếm có gắn nguồn. Word giữ nội dung theo thứ tự tài liệu, Excel giữ tên sheet và số dòng, PDF giữ số trang. Chỉ file có trạng thái `approved`, đang bật và còn hiệu lực mới được AI sử dụng. Tab **Sản phẩm & bảng giá** vẫn nhận Excel bảng giá theo cấu trúc riêng. Giới hạn mỗi lần chọn là 20 file, mỗi file tối đa 25 MB và 250 khối tìm kiếm; PDF scan ảnh chưa có lớp chữ cần OCR trước khi nhập.
 
 Giá bán được truy vấn trực tiếp từ `product_prices`; mô hình AI không được tự tạo giá. Câu trả lời về tiêu chuẩn phải có mã nguồn dạng `[SRC:<uuid>]`. Nếu mô hình trả lời không có nguồn hợp lệ, backend loại bỏ câu trả lời đó và gửi thông báo an toàn thay thế.
 
