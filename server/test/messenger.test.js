@@ -8,7 +8,7 @@ import {
 import { rankKnowledgeDocuments } from '../services/knowledge.js';
 import { extractLeadSignals, missingLeadFields, normalizePhone } from '../services/leadCapture.js';
 import { formatPriceReply, isPriceQuestion, rankProducts } from '../services/pricing.js';
-import { validateGroundedReply } from '../services/ai.js';
+import { generateAiReply, validateGroundedReply } from '../services/ai.js';
 import {
   extractMessengerTextEvents,
   verifyMetaSignature,
@@ -63,6 +63,66 @@ test('rankKnowledgeDocuments tim kiem khong dau', () => {
     'do hut nuoc cua gach',
   );
   assert.equal(ranked[0].id, '1');
+});
+
+test('cau xa giao khong bi bat nham vao tai lieu ky thuat', () => {
+  const ranked = rankKnowledgeDocuments(
+    [
+      {
+        id: '1',
+        title: 'Tiêu chuẩn nguyên vật liệu',
+        source_label: 'TC.09.01.docx',
+        content: 'Tên nguyên liệu, tên chỉ tiêu và phương pháp thử được quy định trong hợp đồng.',
+      },
+    ],
+    'Em tên gì? Đi cà phê với anh được không?',
+  );
+  assert.deepEqual(ranked, []);
+});
+
+test('loc tu chung van giu dung truy van do am than cuc', () => {
+  const ranked = rankKnowledgeDocuments(
+    [
+      {
+        id: 'than-cuc',
+        title: 'Tiêu chuẩn chấp nhận đối với than cục',
+        source_label: 'TC.09.01.docx',
+        content: '2.2.1 Độ ẩm (%): Theo phụ lục HĐ.',
+      },
+      {
+        id: 'vo-dieu',
+        title: 'Tiêu chuẩn bã vỏ điều',
+        source_label: 'TC.09.01.docx',
+        content: 'Độ ẩm không lớn hơn 20.0 phần trăm.',
+      },
+    ],
+    'Độ ẩm than cục bao nhiêu?',
+  );
+  assert.equal(ranked[0].id, 'than-cuc');
+});
+
+test('AI tu choi loi moi ca nhan lich su va chu dong thu lead', async () => {
+  const reply = await generateAiReply({
+    question: 'Em tên gì? Đi cà phê với anh được không?',
+    sources: [],
+    contactUrl: 'https://crm.example/#/embed/test-fanpage',
+  });
+  assert.equal(reply.provider, 'friendly-handoff');
+  assert.match(reply.text, /Trợ lý AI của Gạch Phương Nam/);
+  assert.match(reply.text, /chưa thể đi cà phê/);
+  assert.match(reply.text, /họ tên, số điện thoại và nhu cầu/);
+  assert.match(reply.text, /https:\/\/crm[.]example\/#\/embed\/test-fanpage/);
+});
+
+test('Messenger hoi tung thong tin lead khong lap lai loi moi chung', async () => {
+  const reply = await generateAiReply({
+    question: 'Xin chào',
+    sources: [],
+    leadFollowUp: 'Anh/chị cho em xin số điện thoại để nhân viên liên hệ nhé.',
+    contactUrl: 'https://crm.example/#/embed/test-fanpage',
+  });
+  assert.match(reply.text, /xin số điện thoại/);
+  assert.doesNotMatch(reply.text, /họ tên, số điện thoại và nhu cầu/);
 });
 
 test('lead capture chuan hoa so dien thoai va trich xuat thong tin', () => {

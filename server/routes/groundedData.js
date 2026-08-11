@@ -1,6 +1,7 @@
 import express from 'express';
 import { generateAiReply } from '../services/ai.js';
 import { loadKnowledgeContext } from '../services/knowledge.js';
+import { loadPipelineContactUrl } from '../services/customerEngagement.js';
 
 function asyncHandler(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -78,8 +79,11 @@ export function createGroundedDataRouter({ supabase }) {
             text: text(message?.text, 2000) || '',
           })).filter((message) => message.text)
         : [];
-      const sources = await loadKnowledgeContext(supabase, question, pipelineId);
-      const reply = await generateAiReply({ question, history, sources });
+      const [sources, contactUrl] = await Promise.all([
+        loadKnowledgeContext(supabase, question, pipelineId),
+        loadPipelineContactUrl(supabase, pipelineId),
+      ]);
+      const reply = await generateAiReply({ question, history, sources, contactUrl });
       const selectedProvider = String(process.env.AI_PROVIDER || 'disabled').toLowerCase();
       const providerConfigured =
         (selectedProvider === 'gemini' && Boolean(process.env.GEMINI_API_KEY)) ||
