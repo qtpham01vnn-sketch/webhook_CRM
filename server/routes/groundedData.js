@@ -1,4 +1,6 @@
 import express from 'express';
+import { generateAiReply } from '../services/ai.js';
+import { loadKnowledgeContext } from '../services/knowledge.js';
 
 function asyncHandler(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -62,6 +64,40 @@ export function createGroundedDataRouter({ supabase }) {
       const { data, error } = await query;
       if (error) throw error;
       res.json({ data: data || [] });
+    }),
+  );
+
+  router.post(
+    '/test-ai',
+    asyncHandler(async (req, res) => {
+      const pipelineId = requiredText(req.body.pipeline_id, 'pipeline_id', 80);
+      const question = requiredText(req.body.question, 'question', 4000);
+      const history = Array.isArray(req.body.history)
+        ? req.body.history.slice(-8).map((message) => ({
+            direction: message?.direction === 'outbound' ? 'outbound' : 'inbound',
+            text: text(message?.text, 2000) || '',
+          })).filter((message) => message.text)
+        : [];
+      const sources = await loadKnowledgeContext(supabase, question, pipelineId);
+      const reply = await generateAiReply({ question, history, sources });
+      const selectedProvider = String(process.env.AI_PROVIDER || 'disabled').toLowerCase();
+      const providerConfigured =
+        (selectedProvider === 'gemini' && Boolean(process.env.GEMINI_API_KEY)) ||
+        selectedProvider === 'ollama';
+      res.json({
+        answer: reply.text,
+        provider: reply.provider,
+        grounded: reply.grounded !== false,
+        configured: providerConfigured,
+        found_sources: sources.length > 0,
+        sources: sources.map((source) => ({
+          source_id: source.sourceId,
+          title: source.title,
+          file_name: source.sourceLabel,
+          page_reference: source.pageReference,
+          score: source.score,
+        })),
+      });
     }),
   );
 
