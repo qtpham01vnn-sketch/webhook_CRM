@@ -6,6 +6,7 @@ import {
   syncMessengerLead,
 } from '../services/leadCapture.js';
 import { loadKnowledgeContext } from '../services/knowledge.js';
+import { loadPipelineContactUrl } from '../services/customerEngagement.js';
 import {
   extractMessengerTextEvents,
   getMessengerProfile,
@@ -128,10 +129,11 @@ async function processTextEvent(supabase, event) {
   const leadResult = await syncMessengerLead(supabase, conversation);
   conversation = leadResult.conversation;
 
-  const [history, sources, prices] = await Promise.all([
+  const [history, sources, prices, contactUrl] = await Promise.all([
     recentHistory(supabase, conversation.id),
     loadKnowledgeContext(supabase, event.text, conversation.pipeline_id),
     loadApprovedPrices(supabase, event.text, conversation.pipeline_id),
+    loadPipelineContactUrl(supabase, conversation.pipeline_id),
   ]);
 
   const leadFollowUp = buildLeadFollowUp(conversation, leadResult.created);
@@ -144,6 +146,7 @@ async function processTextEvent(supabase, event) {
       sources,
       structuredPriceReply,
       leadFollowUp,
+      contactUrl,
     });
   } catch (error) {
     console.error('AI provider error:', error.message);

@@ -1,5 +1,8 @@
-const NO_SOURCE_REPLY =
-  'Em chưa tìm thấy căn cứ phù hợp trong tài liệu hoặc bảng giá đã được Phương Nam phê duyệt. Em sẽ không tự suy đoán thông tin này.';
+import {
+  buildConversationalReply,
+  buildNoSourceReply,
+  conversationalIntent,
+} from './customerEngagement.js';
 
 function formatSources(sources) {
   return sources
@@ -116,6 +119,7 @@ export async function generateAiReply({
   sources,
   structuredPriceReply = '',
   leadFollowUp = '',
+  contactUrl = '',
 }) {
   if (structuredPriceReply) {
     return {
@@ -125,9 +129,18 @@ export async function generateAiReply({
     };
   }
 
+  const intent = conversationalIntent(question);
+  if (intent) {
+    return {
+      text: buildConversationalReply({ intent, contactUrl, leadFollowUp }),
+      provider: 'friendly-handoff',
+      grounded: true,
+    };
+  }
+
   if (!sources?.length) {
     return {
-      text: appendFollowUp(NO_SOURCE_REPLY, leadFollowUp),
+      text: buildNoSourceReply(contactUrl, leadFollowUp),
       provider: 'no-source',
       grounded: true,
     };

@@ -69,7 +69,17 @@ test('test AI chi tim trong tai lieu da duyet cua pipeline', async () => {
     enabled: true,
   };
   const supabase = {
-    from() {
+    from(table) {
+      if (table === 'pipelines') {
+        const pipelineQuery = {
+          select() { return pipelineQuery; },
+          eq() { return pipelineQuery; },
+          async maybeSingle() {
+            return { data: { webhook_slug: 'test-fanpage' }, error: null };
+          },
+        };
+        return pipelineQuery;
+      }
       const query = {
         select() { return query; },
         eq() { return query; },
@@ -84,7 +94,9 @@ test('test AI chi tim trong tai lieu da duyet cua pipeline', async () => {
     },
   };
   const previousProvider = process.env.AI_PROVIDER;
+  const previousClientUrl = process.env.CLIENT_URL;
   process.env.AI_PROVIDER = 'disabled';
+  process.env.CLIENT_URL = 'https://webhook-crm-client.vercel.app';
   try {
     const router = createGroundedDataRouter({ supabase });
     const route = router.stack.find((layer) => layer.route?.path === '/test-ai');
@@ -99,5 +111,7 @@ test('test AI chi tim trong tai lieu da duyet cua pipeline', async () => {
   } finally {
     if (previousProvider === undefined) delete process.env.AI_PROVIDER;
     else process.env.AI_PROVIDER = previousProvider;
+    if (previousClientUrl === undefined) delete process.env.CLIENT_URL;
+    else process.env.CLIENT_URL = previousClientUrl;
   }
 });

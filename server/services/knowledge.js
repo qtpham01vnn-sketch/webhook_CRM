@@ -6,12 +6,18 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
+const SEARCH_STOP_TERMS = new Set([
+  'anh', 'bao', 'ban', 'ben', 'cho', 'chi', 'chua', 'cua', 'duoc', 'em', 'gi',
+  'hay', 'khong', 'la', 'minh', 'mot', 'nhieu', 'nhe', 'noi', 'the', 'ten',
+  'thi', 'toi', 'voi',
+]);
+
 function queryTerms(question) {
   return [
     ...new Set(
       normalizeText(question)
         .split(/[^a-z0-9]+/)
-        .filter((term) => term.length >= 3),
+        .filter((term) => term.length >= 3 && !SEARCH_STOP_TERMS.has(term)),
     ),
   ];
 }
@@ -38,17 +44,31 @@ export function rankKnowledgeDocuments(documents, question, limit = 5) {
       const source = normalizeText(document.source_label);
       const content = normalizeText(document.content);
       let score = title && normalizedQuestion.includes(title) ? 20 : 0;
+      let matchedTermCount = 0;
       score += terms.reduce(
-        (total, term) =>
-          total +
-          (title.includes(term) ? 6 : 0) +
-          (source.includes(term) ? 4 : 0) +
-          Math.min(content.split(term).length - 1, 6),
+        (total, term) => {
+          const titleMatch = title.includes(term);
+          const sourceMatch = source.includes(term);
+          const contentMatches = Math.min(content.split(term).length - 1, 6);
+          if (titleMatch || sourceMatch || contentMatches > 0) matchedTermCount += 1;
+          return total + (titleMatch ? 6 : 0) + (sourceMatch ? 4 : 0) + contentMatches;
+        },
         0,
       );
-      return { ...document, score };
+      return {
+        ...document,
+        score,
+        matchedTermCount,
+        strongSingleTermMatch: terms.some(
+          (term) => title.includes(term) || source.includes(term),
+        ),
+      };
     })
-    .filter((document) => document.score >= 2)
+    .filter(
+      (document) =>
+        document.score >= 3 &&
+        (document.matchedTermCount >= 2 || document.strongSingleTermMatch),
+    )
     .sort((left, right) => right.score - left.score)
     .slice(0, limit);
 }
