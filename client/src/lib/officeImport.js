@@ -117,6 +117,51 @@ export function splitTechnicalStandards(rawText, fileName = 'Tai lieu Word') {
   };
 }
 
+export function splitPdfPages(pages, fileName = 'Tai lieu PDF', fileHash = '') {
+  const safePages = Array.isArray(pages) ? pages.slice(0, 250) : [];
+  const totalPages = Number(pages?.totalPages) || safePages.length;
+  const baseName = cleanText(String(fileName || 'Tai lieu PDF').replace(/\.pdf$/i, ''), 120) || 'Tai lieu PDF';
+  const documents = [];
+  const emptyPages = [];
+
+  for (const page of safePages) {
+    const pageNumber = Number(page?.pageNumber) || documents.length + 1;
+    const content = cleanText(page?.text);
+    if (!content) {
+      emptyPages.push(pageNumber);
+      continue;
+    }
+    const code = canonicalCode(content);
+    const firstLine = content.split(/\r?\n/).find(Boolean) || '';
+    const descriptiveTitle = cleanText(firstLine, 140);
+    const title = code
+      ? `${code} — ${baseName}, trang ${pageNumber}`
+      : `${baseName} — trang ${pageNumber}${descriptiveTitle ? `: ${descriptiveTitle}` : ''}`;
+    documents.push({
+      title,
+      version: code,
+      page_reference: `Trang ${pageNumber}`,
+      content,
+      import_key: `${fileHash || fileName}:pdf-page-${pageNumber}`,
+      metadata: { page_number: pageNumber, source_type: 'pdf' },
+    });
+  }
+
+  const warnings = [];
+  if (totalPages > 250) {
+    warnings.push(`PDF có ${totalPages} trang; bản thử nghiệm chỉ đọc 250 trang đầu.`);
+  }
+  if (emptyPages.length) {
+    warnings.push(
+      `${emptyPages.length} trang không có lớp văn bản (${emptyPages.slice(0, 12).join(', ')}${emptyPages.length > 12 ? ', …' : ''}). Nếu đây là bản scan, cần OCR trước khi nhập.`,
+    );
+  }
+  if (!documents.length) {
+    warnings.push('PDF không có nội dung văn bản có thể trích xuất; có thể đây là file scan hoặc file được bảo vệ.');
+  }
+  return { documents, warnings };
+}
+
 function headerKey(value) {
   const normalized = normalizeImportText(value);
   return Object.entries(HEADER_ALIASES).find(([, aliases]) =>
@@ -236,6 +281,32 @@ export async function parseWordFile(file) {
     })),
     warnings: [...(result.messages || []).map((message) => message.message), ...parsed.warnings],
   };
+}
+
+export async function parsePdfFile(file) {
+  if (!/\.pdf$/i.test(file.name)) throw new Error('Vui lòng chọn file PDF định dạng .pdf.');
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error('File PDF vượt quá 25 MB. Vui lòng tách thành các file nhỏ hơn trước khi nhập.');
+  }
+  const arrayBuffer = await file.arrayBuffer();
+  const fileHash = await sha256(arrayBuffer);
+  const { extractPdfPages } = await import('./pdfImport.js');
+  const pages = await extractPdfPages(arrayBuffer);
+  const parsed = splitPdfPages(pages, file.name, fileHash);
+  return {
+    kind: 'knowledge',
+    file_name: file.name,
+    file_hash: fileHash,
+    file_type: 'pdf',
+    items: parsed.documents.map((document) => ({ ...document, selected: true })),
+    warnings: parsed.warnings,
+  };
+}
+
+export async function parseKnowledgeFile(file) {
+  if (/\.docx$/i.test(file.name)) return parseWordFile(file);
+  if (/\.pdf$/i.test(file.name)) return parsePdfFile(file);
+  throw new Error('Vui lòng chọn file Word .docx hoặc PDF .pdf.');
 }
 
 export async function parseExcelFile(file) {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   parseExcelSheets,
   parsePrice,
+  splitPdfPages,
   splitTechnicalStandards,
 } from '../src/lib/officeImport.js';
 
@@ -21,6 +22,23 @@ Phu luc bo sung cho do hut nuoc.
   assert.equal(result.documents[0].version, 'TC.09.01');
   assert.match(result.documents[0].content, /Phu luc bo sung/);
   assert.equal(result.documents[1].version, 'TC.09.02');
+});
+
+test('PDF duoc tach theo trang va giu tham chieu nguon', () => {
+  const result = splitPdfPages(
+    [
+      { pageNumber: 1, text: 'TC.09.01\nDo hut nuoc khong vuot qua 0,5%.' },
+      { pageNumber: 2, text: 'Yeu cau do ben uon toi thieu 35 MPa.' },
+      { pageNumber: 3, text: '' },
+    ],
+    'Tieu-chuan.pdf',
+    'hash-pdf',
+  );
+  assert.equal(result.documents.length, 2);
+  assert.equal(result.documents[0].version, 'TC.09.01');
+  assert.equal(result.documents[0].page_reference, 'Trang 1');
+  assert.equal(result.documents[0].import_key, 'hash-pdf:pdf-page-1');
+  assert.match(result.warnings[0], /1 trang không có lớp văn bản/);
 });
 
 test('file Word khong co ma duoc giu thanh mot tai lieu de xem truoc', () => {

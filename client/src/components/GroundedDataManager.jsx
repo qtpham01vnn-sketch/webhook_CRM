@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { crmApi } from '../lib/api.js';
-import { parseExcelFile, parseWordFile } from '../lib/officeImport.js';
+import { parseExcelFile, parseKnowledgeFile } from '../lib/officeImport.js';
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -107,31 +107,31 @@ function OfficeImportPanel({
   onImport,
   onClear,
 }) {
-  const isWord = mode === 'knowledge';
+  const isKnowledge = mode === 'knowledge';
   const selectedCount = preview?.items.filter((item) => item.selected).length || 0;
   return (
     <div className="rounded-2xl border border-cyan-400/30 bg-cyan-400/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-cyan-400/10 p-2.5 text-cyan-400">
-            {isWord ? <FileText size={22} /> : <TableProperties size={22} />}
+            {isKnowledge ? <FileText size={22} /> : <TableProperties size={22} />}
           </div>
           <div>
             <p className="font-semibold text-ink">
-              {isWord ? 'Upload Word — tự tách TC.09.xx' : 'Upload Excel — nhập sản phẩm & bảng giá'}
+              {isKnowledge ? 'Upload Word/PDF — tự trích xuất theo mục và trang' : 'Upload Excel — nhập sản phẩm & bảng giá'}
             </p>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              {isWord
-                ? 'Chọn file .docx. Hệ thống nhận TC.09.01, TC.09.02… và cho anh kiểm tra từng mục trước khi lưu.'
+              {isKnowledge
+                ? 'Chọn .docx hoặc PDF có lớp văn bản. Word được tách theo TC.09.xx; PDF được tách theo từng trang để giữ nguồn trích dẫn.'
                 : 'Chọn file .xlsx. Hệ thống tự dò các cột mã sản phẩm, tên, kích thước, đơn giá và điều kiện giá.'}
             </p>
           </div>
         </div>
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
           {parsing ? <LoaderCircle className="animate-spin" size={17} /> : <UploadCloud size={17} />}
-          {parsing ? 'Đang đọc file…' : `Chọn file ${isWord ? 'Word' : 'Excel'}`}
+          {parsing ? 'Đang đọc file…' : `Chọn file ${isKnowledge ? 'Word/PDF' : 'Excel'}`}
           <input
-            accept={isWord ? '.docx' : '.xlsx'}
+            accept={isKnowledge ? '.docx,.pdf' : '.xlsx'}
             className="sr-only"
             disabled={parsing || saving}
             onChange={onFile}
@@ -169,10 +169,10 @@ function OfficeImportPanel({
                 <input checked={item.selected} className="mt-1 h-4 w-4 accent-cyan-500" onChange={() => onToggle(index)} type="checkbox" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-slate-800">
-                    {isWord ? item.title : `${item.product_code} — ${item.name}`}
+                    {isKnowledge ? item.title : `${item.product_code} — ${item.name}`}
                   </span>
                   <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    {isWord
+                    {isKnowledge
                       ? item.content.slice(0, 180)
                       : `${item.dimensions || 'Chưa có kích thước'} · ${Number(item.unit_price).toLocaleString('vi-VN')} VND/${item.unit}`}
                   </span>
@@ -270,7 +270,7 @@ export default function GroundedDataManager({ pipeline }) {
     setError('');
     setNotice('');
     try {
-      const preview = tab === 'standards' ? await parseWordFile(file) : await parseExcelFile(file);
+      const preview = tab === 'standards' ? await parseKnowledgeFile(file) : await parseExcelFile(file);
       setImportPreview(preview);
       setImportApproval('draft');
     } catch (fileError) {
@@ -306,7 +306,11 @@ export default function GroundedDataManager({ pipeline }) {
           documents: selected.map(({ selected: _selected, ...document }) => ({
             ...document,
             source_label: importPreview.file_name,
-            metadata: { file_hash: importPreview.file_hash },
+            metadata: {
+              ...(document.metadata || {}),
+              file_hash: importPreview.file_hash,
+              file_type: importPreview.file_type || 'docx',
+            },
           })),
         });
         setNotice(`Đã nhập ${response.imported} mục tiêu chuẩn${response.skipped ? `, bỏ qua ${response.skipped} mục đã nhập trước đó` : ''}.`);

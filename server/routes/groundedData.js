@@ -290,7 +290,7 @@ export function createGroundedDataRouter({ supabase }) {
               import_key: importKey,
               original_file: text(req.body.file_name, 300),
               imported_at: now,
-              import_method: 'office_upload',
+              import_method: 'document_upload',
             },
             enabled: true,
             updated_at: now,
